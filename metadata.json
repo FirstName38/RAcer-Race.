@@ -1,0 +1,6 @@
+{
+  "name": "RAcer",
+  "description": "ADHD-friendly productivity and digital-focus application with timers, tasks, habits, journal, focus room, insights, and AI coaching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

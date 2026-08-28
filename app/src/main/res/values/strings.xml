@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">RAcer</string>
+    <string name="accessibility_service_desc">RAcer Focus Blocker detects when blocked distracting apps are opened during an active focus session and redirects you back to your focus zone.</string>
+</resources>
