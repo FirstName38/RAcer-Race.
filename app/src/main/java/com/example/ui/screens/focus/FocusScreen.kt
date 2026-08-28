@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.MoreTime
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
@@ -39,6 +40,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
@@ -83,6 +85,7 @@ import com.example.ui.viewmodel.RacerViewModel
 @Composable
 fun FocusScreen(
     viewModel: RacerViewModel,
+    onNavigateToSessions: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val timerState by viewModel.timerState.collectAsState()
@@ -118,7 +121,37 @@ fun FocusScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Quick Top Bar for Session History & Config
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Focus Sanctuary",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+
+                OutlinedButton(
+                    onClick = onNavigateToSessions,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CharcoalCardElevated)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = CyanAccent,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("History & Logs", fontSize = 11.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                }
+            }
 
             // Mode Selector Tabs (only active if timer is not running)
             if (!timerState.isRunning) {

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -18,6 +19,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     data object Home : Screen("home", "Home", Icons.Default.Home)
     data object Focus : Screen("focus", "Focus", Icons.Default.Timer)
+    data object SessionDashboard : Screen("session_dashboard", "Sessions", Icons.Default.Schedule)
     data object Tasks : Screen("tasks", "Tasks", Icons.Default.CheckCircle)
     data object Habits : Screen("habits", "Habit & Challenge", Icons.Default.Repeat)
     data object Wellness : Screen("wellness", "Mental & Yoga", Icons.Default.SelfImprovement)
@@ -33,6 +35,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 val MainNavigationItems = listOf(
     Screen.Home,
     Screen.Focus,
+    Screen.SessionDashboard,
     Screen.Tasks,
     Screen.Habits,
     Screen.Wellness,

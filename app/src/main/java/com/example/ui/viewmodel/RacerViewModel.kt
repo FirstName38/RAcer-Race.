@@ -181,6 +181,56 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         refreshStats()
     }
 
+    fun deleteFocusSession(sessionId: Long) {
+        viewModelScope.launch {
+            repository.deleteFocusSession(sessionId)
+            refreshStats()
+        }
+    }
+
+    fun updateSessionNote(sessionId: Long, note: String) {
+        viewModelScope.launch {
+            repository.updateSessionNote(sessionId, note)
+        }
+    }
+
+    fun clearAllFocusSessions() {
+        viewModelScope.launch {
+            repository.deleteAllFocusSessions()
+            refreshStats()
+        }
+    }
+
+    fun logManualSession(
+        mode: FocusMode,
+        durationMinutes: Int,
+        taskTitle: String? = null,
+        note: String = "",
+        isCompleted: Boolean = true
+    ) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val start = now - (durationMinutes * 60 * 1000L)
+            val timeFormat = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+            val session = FocusSessionEntity(
+                startTime = start,
+                endTime = now,
+                plannedDurationMinutes = durationMinutes,
+                actualDurationSeconds = durationMinutes * 60,
+                mode = mode,
+                isCompleted = isCompleted,
+                taskTitle = taskTitle?.takeIf { it.isNotBlank() },
+                soundUsed = "none",
+                wallpaperUsed = "dark_minimal",
+                clockStartTimeStr = timeFormat.format(java.util.Date(start)),
+                clockEndTimeStr = timeFormat.format(java.util.Date(now)),
+                note = note
+            )
+            repository.saveFocusSession(session)
+            refreshStats()
+        }
+    }
+
     fun setSound(sound: FocusSound) {
         selectedSound.value = sound
         val app = getApplication<Application>()

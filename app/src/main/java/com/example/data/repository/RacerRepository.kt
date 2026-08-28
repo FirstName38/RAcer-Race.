@@ -69,8 +69,20 @@ class RacerRepository(private val context: Context) {
         focusDao.insertSession(session)
     }
 
+    suspend fun updateFocusSession(session: FocusSessionEntity) = withContext(Dispatchers.IO) {
+        focusDao.updateSession(session)
+    }
+
+    suspend fun updateSessionNote(id: Long, note: String) = withContext(Dispatchers.IO) {
+        focusDao.updateSessionNote(id, note)
+    }
+
     suspend fun deleteFocusSession(id: Long) = withContext(Dispatchers.IO) {
         focusDao.deleteSessionById(id)
+    }
+
+    suspend fun deleteAllFocusSessions() = withContext(Dispatchers.IO) {
+        focusDao.deleteAllSessions()
     }
 
     // --- Tasks ---

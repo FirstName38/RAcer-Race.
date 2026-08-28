@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.DropdownMenu
@@ -75,6 +76,7 @@ import com.example.ui.screens.habits.HabitsScreen
 import com.example.ui.screens.home.HomeScreen
 import com.example.ui.screens.insights.InsightsScreen
 import com.example.ui.screens.journal.JournalScreen
+import com.example.ui.screens.sessions.SessionDashboardScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.tasks.TasksScreen
 import com.example.ui.screens.wellness.WellnessScreen
@@ -191,6 +193,14 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                             modifier = Modifier.background(CharcoalCardElevated)
                         ) {
                             DropdownMenuItem(
+                                text = { Text("Session Dashboard & History", color = TextPrimary) },
+                                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = CyanAccent) },
+                                onClick = {
+                                    showQuickMenu = false
+                                    navController.navigate(Screen.SessionDashboard.route)
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Mental Health & Movement", color = TextPrimary) },
                                 leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent) },
                                 onClick = {
@@ -299,11 +309,21 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                         onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
                         onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
                         onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
-                        onNavigateToAI = { navController.navigate(Screen.LumaAI.route) }
+                        onNavigateToAI = { navController.navigate(Screen.LumaAI.route) },
+                        onNavigateToSessions = { navController.navigate(Screen.SessionDashboard.route) }
                     )
                 }
                 composable(Screen.Focus.route) {
-                    FocusScreen(viewModel = viewModel)
+                    FocusScreen(
+                        viewModel = viewModel,
+                        onNavigateToSessions = { navController.navigate(Screen.SessionDashboard.route) }
+                    )
+                }
+                composable(Screen.SessionDashboard.route) {
+                    SessionDashboardScreen(
+                        viewModel = viewModel,
+                        onNavigateToFocus = { navController.navigate(Screen.Focus.route) }
+                    )
                 }
                 composable(Screen.Tasks.route) {
                     TasksScreen(
