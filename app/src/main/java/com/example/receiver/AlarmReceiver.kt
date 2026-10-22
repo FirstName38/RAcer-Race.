@@ -39,26 +39,69 @@ class AlarmReceiver : BroadcastReceiver() {
         val message = if (isBedtime) {
             "It's almost bedtime. Time to wind down and prepare for restful sleep."
         } else {
-            "It's time for your scheduled alarm!"
+            "Alarm is ringing! Tap to open or choose Dismiss/Snooze."
         }
+
+        val notifId = NotificationHelper.NOTIFICATION_ID_ALARM + alarmId.toInt().coerceAtLeast(0)
+
+        // Dismiss action
+        val dismissIntent = Intent(context, AlarmActionReceiver::class.java).apply {
+            action = AlarmActionReceiver.ACTION_DISMISS
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmActionReceiver.EXTRA_NOTIFICATION_ID, notifId)
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_LABEL, label)
+        }
+        val dismissPending = PendingIntent.getBroadcast(
+            context,
+            (alarmId * 10 + 1).toInt(),
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Snooze action (+5 minutes)
+        val snoozeIntent = Intent(context, AlarmActionReceiver::class.java).apply {
+            action = AlarmActionReceiver.ACTION_SNOOZE
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_ID, alarmId)
+            putExtra(AlarmActionReceiver.EXTRA_NOTIFICATION_ID, notifId)
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_LABEL, label)
+        }
+        val snoozePending = PendingIntent.getBroadcast(
+            context,
+            (alarmId * 10 + 2).toInt(),
+            snoozeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val cal = Calendar.getInstance()
+        val currentHour = cal.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = cal.get(Calendar.MINUTE)
+
+        // Trigger Real Alarm Sound and Vibration
+        com.example.audio.RealAlarmAudioPlayer.startAlarm(
+            context = context,
+            alarmId = alarmId,
+            label = label,
+            hour = currentHour,
+            minute = currentMinute,
+            soundName = "DIGITAL_BEEP"
+        )
 
         val notification = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_ALARMS)
             .setContentTitle(title)
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setContentIntent(pendingOpenApp)
-            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS", dismissPending)
+            .addAction(android.R.drawable.ic_lock_idle_alarm, "SNOOZE (5m)", snoozePending)
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NotificationHelper.NOTIFICATION_ID_ALARM + alarmId.toInt().coerceAtLeast(0), notification)
-
-        if (vibrate) {
-            triggerVibration(context)
-        }
+        manager.notify(notifId, notification)
     }
 
     private fun triggerVibration(context: Context) {
@@ -212,15 +255,44 @@ object AlarmScheduler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val cal = Calendar.getInstance()
+        val currentHour = cal.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = cal.get(Calendar.MINUTE)
+
+        // Trigger real loud alarm immediately
+        com.example.audio.RealAlarmAudioPlayer.startAlarm(
+            context = context,
+            alarmId = 8888L,
+            label = label,
+            hour = currentHour,
+            minute = currentMinute,
+            soundName = "DIGITAL_BEEP"
+        )
+
+        val dismissIntent = Intent(context, AlarmActionReceiver::class.java).apply {
+            action = AlarmActionReceiver.ACTION_DISMISS
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_ID, 8888L)
+            putExtra(AlarmActionReceiver.EXTRA_NOTIFICATION_ID, NotificationHelper.NOTIFICATION_ID_ALARM + 8888)
+            putExtra(AlarmActionReceiver.EXTRA_ALARM_LABEL, label)
+        }
+        val dismissPending = PendingIntent.getBroadcast(
+            context,
+            8889,
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, NotificationHelper.CHANNEL_ALARMS)
-            .setContentTitle("⏰ Habit Alarm Triggered!")
-            .setContentText("Reminder test: $label — Keep your streak active!")
+            .setContentTitle("⏰ Alarm Ringing: $label")
+            .setContentText("Audible alarm is ringing! Tap Dismiss to stop.")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setContentIntent(pendingOpenApp)
-            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "DISMISS", dismissPending)
             .build()
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

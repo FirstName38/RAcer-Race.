@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.example.data.entity.AlarmEntity
 import com.example.data.entity.AppUsageEntity
 import com.example.data.entity.ChatMessageEntity
+import com.example.data.entity.DailyRoutineEntity
 import com.example.data.entity.FocusSessionEntity
 import com.example.data.entity.HabitCompletionEntity
 import com.example.data.entity.HabitEntity
@@ -16,6 +17,7 @@ import com.example.data.entity.JournalEntryEntity
 import com.example.data.entity.SettingsEntity
 import com.example.data.entity.SpecialDateEntity
 import com.example.data.entity.TaskEntity
+import com.example.data.entity.WeeklyPlanEntity
 import com.example.data.entity.WellnessLogEntity
 import com.example.data.entity.WellnessRoutineEntity
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +35,9 @@ interface FocusDao {
 
     @Query("SELECT * FROM focus_sessions ORDER BY startTime DESC LIMIT 1")
     fun getLatestSession(): Flow<FocusSessionEntity?>
+
+    @Query("SELECT * FROM focus_sessions ORDER BY startTime DESC")
+    suspend fun getAllSessionsOnce(): List<FocusSessionEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: FocusSessionEntity): Long
@@ -85,6 +90,9 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE isActive = 1 ORDER BY id ASC")
     fun getActiveHabits(): Flow<List<HabitEntity>>
 
+    @Query("SELECT * FROM habits WHERE isActive = 1 ORDER BY id ASC")
+    suspend fun getActiveHabitsOnce(): List<HabitEntity>
+
     @Query("SELECT * FROM habits ORDER BY id ASC")
     fun getAllHabits(): Flow<List<HabitEntity>>
 
@@ -103,6 +111,9 @@ interface HabitDao {
     @Query("SELECT * FROM habit_completions WHERE dateString = :dateString")
     fun getCompletionsForDate(dateString: String): Flow<List<HabitCompletionEntity>>
 
+    @Query("SELECT * FROM habit_completions WHERE dateString = :dateString")
+    suspend fun getCompletionsForDateOnce(dateString: String): List<HabitCompletionEntity>
+
     @Query("SELECT * FROM habit_completions WHERE habitId = :habitId")
     fun getCompletionsForHabit(habitId: Long): Flow<List<HabitCompletionEntity>>
 
@@ -114,6 +125,12 @@ interface HabitDao {
 
     @Query("DELETE FROM habit_completions WHERE habitId = :habitId AND dateString = :dateString")
     suspend fun deleteCompletion(habitId: Long, dateString: String)
+
+    @Query("DELETE FROM habits WHERE id = :id")
+    suspend fun deleteHabitById(id: Long)
+
+    @Query("DELETE FROM habit_completions WHERE habitId = :habitId")
+    suspend fun deleteCompletionsForHabit(habitId: Long)
 
     @Query("DELETE FROM habits")
     suspend fun deleteAllHabits()
@@ -286,4 +303,74 @@ interface WellnessDao {
     @Query("DELETE FROM wellness_logs")
     suspend fun deleteAllLogs()
 }
+
+@Dao
+interface DailyRoutineDao {
+    @Query("SELECT * FROM daily_routines ORDER BY sortOrder ASC, scheduledTime ASC")
+    fun getAllRoutines(): Flow<List<DailyRoutineEntity>>
+
+    @Query("SELECT * FROM daily_routines WHERE timeSlot = :slot ORDER BY sortOrder ASC, scheduledTime ASC")
+    fun getRoutinesBySlot(slot: String): Flow<List<DailyRoutineEntity>>
+
+    @Query("SELECT * FROM daily_routines WHERE id = :id")
+    suspend fun getRoutineById(id: Long): DailyRoutineEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRoutine(routine: DailyRoutineEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllRoutines(routines: List<DailyRoutineEntity>)
+
+    @Update
+    suspend fun updateRoutine(routine: DailyRoutineEntity)
+
+    @Delete
+    suspend fun deleteRoutine(routine: DailyRoutineEntity)
+
+    @Query("DELETE FROM daily_routines WHERE id = :id")
+    suspend fun deleteRoutineById(id: Long)
+
+    @Query("UPDATE daily_routines SET isCompletedToday = :isCompleted, lastCompletedDate = :dateStr WHERE id = :id")
+    suspend fun updateCompletion(id: Long, isCompleted: Boolean, dateStr: String)
+
+    @Query("UPDATE daily_routines SET isCompletedToday = 0 WHERE lastCompletedDate != :todayDateStr")
+    suspend fun resetIfNotToday(todayDateStr: String)
+
+    @Query("UPDATE daily_routines SET isCompletedToday = 0")
+    suspend fun resetAllCompletions()
+
+    @Query("DELETE FROM daily_routines")
+    suspend fun deleteAllRoutines()
+}
+
+@Dao
+interface WeeklyPlanDao {
+    @Query("SELECT * FROM weekly_plans ORDER BY isCompleted ASC, id DESC")
+    fun getAllWeeklyPlans(): Flow<List<WeeklyPlanEntity>>
+
+    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, id DESC")
+    fun getPlansForWeek(week: Int, year: Int): Flow<List<WeeklyPlanEntity>>
+
+    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, id DESC")
+    suspend fun getPlansForWeekOnce(week: Int, year: Int): List<WeeklyPlanEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWeeklyPlan(plan: WeeklyPlanEntity): Long
+
+    @Update
+    suspend fun updateWeeklyPlan(plan: WeeklyPlanEntity)
+
+    @Delete
+    suspend fun deleteWeeklyPlan(plan: WeeklyPlanEntity)
+
+    @Query("DELETE FROM weekly_plans WHERE id = :id")
+    suspend fun deleteWeeklyPlanById(id: Long)
+
+    @Query("UPDATE weekly_plans SET isCompleted = :isCompleted WHERE id = :id")
+    suspend fun toggleWeeklyPlan(id: Long, isCompleted: Boolean)
+
+    @Query("DELETE FROM weekly_plans")
+    suspend fun deleteAllWeeklyPlans()
+}
+
 

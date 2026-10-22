@@ -484,92 +484,88 @@ fun WellnessPlayerBottomSheet(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Progress Indicator
-                Text(
-                    text = "Step ${currentStepIndex + 1} of ${steps.size}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = tintColor,
-                    fontWeight = FontWeight.SemiBold
-                )
+                val isBreathingPractice = routine.category == "BREATHING" || routine.title.contains("Breath", ignoreCase = true)
 
-                Spacer(modifier = Modifier.height(24.dp))
+                if (isBreathingPractice) {
+                    // Full Box Breathing Studio with 4s Inhale, 4s Hold, 4s Exhale, 4s Hold Countdown & Canvas
+                    BoxBreathingStudio(
+                        onFinish = { elapsed ->
+                            totalElapsedSecs = elapsed
+                            isFinished = true
+                        }
+                    )
+                } else {
+                    // Progress Indicator
+                    Text(
+                        text = "Step ${currentStepIndex + 1} of ${steps.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = tintColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
 
-                // Step Name & Countdown Circle
-                Box(
-                    modifier = Modifier
-                        .size(160.dp)
-                        .clip(CircleShape)
-                        .background(tintColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val mins = stepRemainingSecs / 60
-                        val secs = stepRemainingSecs % 60
-                        Text(
-                            text = String.format("%02d:%02d", mins, secs),
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Remaining",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
-                        )
-                    }
-                }
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    // Exercise Motion Visualizer with Rotational Guides, Spinal Waves, and Countdown Ring
+                    ExerciseMotionVisualizer(
+                        stepName = currentStep.name,
+                        category = routine.category,
+                        remainingSeconds = stepRemainingSecs,
+                        totalSeconds = currentStep.durationSeconds,
+                        color = tintColor
+                    )
 
-                Text(
-                    text = currentStep.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = currentStep.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
 
-                Text(
-                    text = currentStep.cue,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 22.sp
-                )
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Spacer(modifier = Modifier.height(28.dp))
+                    Text(
+                        text = currentStep.cue,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        lineHeight = 22.sp
+                    )
 
-                // Controls: Pause / Next Step
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Button(
-                        onClick = { isPaused = !isPaused },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isPaused) EmeraldSuccess else CharcoalBorder
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Controls: Pause / Next Step
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (isPaused) "Resume" else "Pause", color = TextPrimary)
-                    }
+                        Button(
+                            onClick = { isPaused = !isPaused },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isPaused) EmeraldSuccess else CharcoalBorder
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (isPaused) "Resume" else "Pause", color = TextPrimary)
+                        }
 
-                    Button(
-                        onClick = {
-                            if (currentStepIndex < steps.size - 1) {
-                                currentStepIndex++
-                            } else {
-                                isFinished = true
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = tintColor),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Next")
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (currentStepIndex < steps.size - 1) "Next Step" else "Complete Practice")
+                        Button(
+                            onClick = {
+                                if (currentStepIndex < steps.size - 1) {
+                                    currentStepIndex++
+                                } else {
+                                    isFinished = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = tintColor),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.SkipNext, contentDescription = "Next")
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (currentStepIndex < steps.size - 1) "Next Step" else "Complete Practice")
+                        }
                     }
                 }
             } else {

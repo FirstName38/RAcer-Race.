@@ -134,17 +134,130 @@ fun SettingsScreen(
             }
         }
 
-        // Appearance & Aesthetic Theme
+        // Appearance & Aesthetic Theme Studio
         item {
+            val currentTheme by viewModel.currentAppTheme.collectAsState()
+            val currentWallpaper by viewModel.currentAppWallpaper.collectAsState()
+            val weekStartDay by viewModel.weekStartDay.collectAsState()
+
             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Palette, contentDescription = null, tint = VioletPrimary)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Visual Experience", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                        Column {
+                            Text("Theme & Atmosphere Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("Switch color palettes and dynamic live animated backdrops", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        }
                     }
 
-                    Text("Dark-first soothing theme active (#12121A) with Violet/Cyan luminous gradients to lower visual sensory overload.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    // 1. Color Theme Palette Selector
+                    Text("App Theme (${currentTheme.displayName}):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(com.example.ui.theme.AppTheme.values()) { theme ->
+                            val isSelected = currentTheme == theme
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VioletPrimary.copy(alpha = 0.25f) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                modifier = Modifier.clickable { viewModel.setAppTheme(theme) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // Two-tone dot
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(theme.primaryColor)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(theme.accentColor)
+                                    )
+                                    Text(
+                                        text = theme.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else TextSecondary
+                                    )
+                                    if (isSelected) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(14.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Animated Live Wallpaper Backdrop Selector
+                    Text("Animated Wallpaper Backdrop (${currentWallpaper.displayName}):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(com.example.ui.theme.AppWallpaper.values()) { wp ->
+                            val isSelected = currentWallpaper == wp
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) CyanAccent.copy(alpha = 0.2f) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                modifier = Modifier.clickable { viewModel.setAppWallpaper(wp) }
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = wp.displayName,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) CyanAccent else TextPrimary
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    Text(
+                                        text = wp.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. First Day of Week Preference
+                    Text("First Day of Week (Weekly Calendar):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("MONDAY" to "Monday", "SUNDAY" to "Sunday", "SATURDAY" to "Saturday").forEach { (dayKey, dayLabel) ->
+                            val isSelected = weekStartDay == dayKey
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) VioletPrimary else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { viewModel.setWeekStartDay(dayKey) }
+                            ) {
+                                Text(
+                                    text = dayLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) Color.White else TextSecondary,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

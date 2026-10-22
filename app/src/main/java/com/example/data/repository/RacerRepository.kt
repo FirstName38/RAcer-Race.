@@ -14,6 +14,7 @@ import com.example.data.entity.SpecialDateEntity
 import com.example.data.entity.TaskEntity
 import com.example.data.entity.WellnessLogEntity
 import com.example.data.entity.WellnessRoutineEntity
+import com.example.data.entity.WeeklyPlanEntity
 import com.example.data.model.FocusMode
 import com.example.data.model.FocusSound
 import com.example.data.model.FocusWallpaper
@@ -44,6 +45,8 @@ class RacerRepository(private val context: Context) {
     private val chatDao = db.chatDao()
     private val specialDateDao = db.specialDateDao()
     private val wellnessDao = db.wellnessDao()
+    private val dailyRoutineDao = db.dailyRoutineDao()
+    private val weeklyPlanDao = db.weeklyPlanDao()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
@@ -139,6 +142,27 @@ class RacerRepository(private val context: Context) {
 
     suspend fun deleteHabit(habit: HabitEntity) = withContext(Dispatchers.IO) {
         habitDao.deleteHabit(habit)
+        habitDao.deleteCompletionsForHabit(habit.id)
+    }
+
+    suspend fun deleteHabitById(id: Long) = withContext(Dispatchers.IO) {
+        habitDao.deleteHabitById(id)
+        habitDao.deleteCompletionsForHabit(id)
+    }
+
+    suspend fun getCustomHabitCategories(): List<String> = withContext(Dispatchers.IO) {
+        val saved = getSetting("custom_habit_categories", "")
+        if (saved.isBlank()) emptyList() else saved.split("|").filter { it.isNotBlank() }
+    }
+
+    suspend fun addCustomHabitCategory(cat: String) = withContext(Dispatchers.IO) {
+        val clean = cat.trim()
+        if (clean.isBlank()) return@withContext
+        val current = getCustomHabitCategories().toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            setSetting("custom_habit_categories", current.joinToString("|"))
+        }
     }
 
     suspend fun toggleHabitCompletion(habitId: Long, dateString: String) = withContext(Dispatchers.IO) {
@@ -330,6 +354,166 @@ class RacerRepository(private val context: Context) {
                 )
             )
             wellnessDao.insertAllRoutines(defaults)
+        }
+    }
+
+    // --- Daily Routine ---
+    val allDailyRoutines: Flow<List<com.example.data.entity.DailyRoutineEntity>> = dailyRoutineDao.getAllRoutines()
+
+    suspend fun insertDailyRoutine(routine: com.example.data.entity.DailyRoutineEntity): Long = withContext(Dispatchers.IO) {
+        dailyRoutineDao.insertRoutine(routine)
+    }
+
+    suspend fun updateDailyRoutine(routine: com.example.data.entity.DailyRoutineEntity) = withContext(Dispatchers.IO) {
+        dailyRoutineDao.updateRoutine(routine)
+    }
+
+    suspend fun deleteDailyRoutine(id: Long) = withContext(Dispatchers.IO) {
+        dailyRoutineDao.deleteRoutineById(id)
+    }
+
+    suspend fun toggleDailyRoutine(id: Long) = withContext(Dispatchers.IO) {
+        val routine = dailyRoutineDao.getRoutineById(id) ?: return@withContext
+        val todayStr = getTodayDateString()
+        val newStatus = if (routine.lastCompletedDate == todayStr) !routine.isCompletedToday else true
+        dailyRoutineDao.updateCompletion(id, newStatus, todayStr)
+    }
+
+    suspend fun resetDailyRoutines() = withContext(Dispatchers.IO) {
+        dailyRoutineDao.resetAllCompletions()
+    }
+
+    suspend fun checkDailyRoutineReset() = withContext(Dispatchers.IO) {
+        dailyRoutineDao.resetIfNotToday(getTodayDateString())
+    }
+
+    suspend fun seedDefaultDailyRoutinesIfEmpty() = withContext(Dispatchers.IO) {
+        val existing = dailyRoutineDao.getAllRoutines().firstOrNull()
+        if (existing.isNullOrEmpty()) {
+            val defaults = listOf(
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Wake Up & 500ml Water",
+                    timeSlot = "MORNING",
+                    scheduledTime = "06:30",
+                    durationMinutes = 5,
+                    iconName = "wb_sunny",
+                    colorHex = "#F59E0B",
+                    cueNote = "Kickstart hydration and metabolic alert systems.",
+                    actionType = "NONE",
+                    sortOrder = 1
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Box Breathing 4-4-4-4 Practice",
+                    timeSlot = "MORNING",
+                    scheduledTime = "06:45",
+                    durationMinutes = 5,
+                    iconName = "air",
+                    colorHex = "#06B6D4",
+                    cueNote = "Calm autonomic nervous system with 4s inhale/hold/exhale.",
+                    actionType = "BREATHING",
+                    sortOrder = 2
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Sun Salutation & Flow",
+                    timeSlot = "MORNING",
+                    scheduledTime = "07:00",
+                    durationMinutes = 10,
+                    iconName = "self_improvement",
+                    colorHex = "#10B981",
+                    cueNote = "Awaken thoracic spine and loosen hip flexors.",
+                    actionType = "YOGA",
+                    sortOrder = 3
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Daily Focus Plan & Top 3 Tasks",
+                    timeSlot = "MORNING",
+                    scheduledTime = "07:30",
+                    durationMinutes = 15,
+                    iconName = "check_circle",
+                    colorHex = "#8B5CF6",
+                    cueNote = "Select the single highest leverage task before opening email.",
+                    actionType = "JOURNAL",
+                    sortOrder = 4
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Deep Work Focus Block #1",
+                    timeSlot = "DEEP_WORK",
+                    scheduledTime = "09:00",
+                    durationMinutes = 50,
+                    iconName = "timer",
+                    colorHex = "#EC4899",
+                    cueNote = "High cognitive effort. Phones on silent, zero interruption.",
+                    actionType = "FOCUS",
+                    sortOrder = 5
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Desk Neck & Spine Decompression",
+                    timeSlot = "MIDDAY",
+                    scheduledTime = "12:30",
+                    durationMinutes = 6,
+                    iconName = "accessibility_new",
+                    colorHex = "#06B6D4",
+                    cueNote = "Neutralize computer hunch and eye strain.",
+                    actionType = "STRETCH",
+                    sortOrder = 6
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Mindful Nutrient Lunch & Screen Break",
+                    timeSlot = "MIDDAY",
+                    scheduledTime = "13:00",
+                    durationMinutes = 45,
+                    iconName = "restaurant",
+                    colorHex = "#10B981",
+                    cueNote = "Eat away from your work monitor.",
+                    actionType = "NONE",
+                    sortOrder = 7
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Afternoon Execution Sprint #2",
+                    timeSlot = "AFTERNOON",
+                    scheduledTime = "14:30",
+                    durationMinutes = 45,
+                    iconName = "timer",
+                    colorHex = "#8B5CF6",
+                    cueNote = "Task clearance and administrative follow-through.",
+                    actionType = "FOCUS",
+                    sortOrder = 8
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Outdoor 20-Minute Brisk Walk",
+                    timeSlot = "AFTERNOON",
+                    scheduledTime = "17:30",
+                    durationMinutes = 20,
+                    iconName = "directions_walk",
+                    colorHex = "#F59E0B",
+                    cueNote = "Natural sunlight and optic flow reset.",
+                    actionType = "NONE",
+                    sortOrder = 9
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "Digital Detox & Evening Journal",
+                    timeSlot = "EVENING",
+                    scheduledTime = "21:00",
+                    durationMinutes = 15,
+                    iconName = "edit_note",
+                    colorHex = "#8B5CF6",
+                    cueNote = "Log 1 thing learned, 1 thing felt, and gratitude.",
+                    actionType = "JOURNAL",
+                    sortOrder = 10
+                ),
+                com.example.data.entity.DailyRoutineEntity(
+                    title = "4-7-8 Relaxation Breathing & Bedtime",
+                    timeSlot = "NIGHT",
+                    scheduledTime = "22:30",
+                    durationMinutes = 10,
+                    iconName = "bedtime",
+                    colorHex = "#6366F1",
+                    cueNote = "Activate parasympathetic tone for deep restorative sleep.",
+                    actionType = "BREATHING",
+                    sortOrder = 11
+                )
+            )
+            dailyRoutineDao.insertAllRoutines(defaults)
         }
     }
 
@@ -573,6 +757,92 @@ class RacerRepository(private val context: Context) {
 
     suspend fun deleteAIChatHistory() = withContext(Dispatchers.IO) {
         chatDao.deleteAllMessages()
+    }
+
+    // --- Weekly Plans ---
+    val allWeeklyPlans: Flow<List<WeeklyPlanEntity>> = weeklyPlanDao.getAllWeeklyPlans()
+
+    fun getPlansForWeek(week: Int, year: Int): Flow<List<WeeklyPlanEntity>> =
+        weeklyPlanDao.getPlansForWeek(week, year)
+
+    suspend fun insertWeeklyPlan(plan: WeeklyPlanEntity): Long = withContext(Dispatchers.IO) {
+        weeklyPlanDao.insertWeeklyPlan(plan)
+    }
+
+    suspend fun updateWeeklyPlan(plan: WeeklyPlanEntity) = withContext(Dispatchers.IO) {
+        weeklyPlanDao.updateWeeklyPlan(plan)
+    }
+
+    suspend fun deleteWeeklyPlan(id: Long) = withContext(Dispatchers.IO) {
+        weeklyPlanDao.deleteWeeklyPlanById(id)
+    }
+
+    suspend fun toggleWeeklyPlan(id: Long, isCompleted: Boolean) = withContext(Dispatchers.IO) {
+        weeklyPlanDao.toggleWeeklyPlan(id, isCompleted)
+    }
+
+    suspend fun seedDefaultWeeklyPlansIfEmpty(weekNumber: Int, year: Int) = withContext(Dispatchers.IO) {
+        val existing = weeklyPlanDao.getPlansForWeek(weekNumber, year).firstOrNull() ?: emptyList()
+        if (existing.isEmpty()) {
+            val defaults = listOf(
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = "Deep Work: 10 Hours Milestone",
+                    description = "Accumulate 10 high-quality Pomodoro or ADHD gentle focus hours",
+                    dayOfWeek = "ALL",
+                    isCompleted = false,
+                    priority = "HIGH",
+                    category = "Productivity",
+                    targetTimeMinutes = 600
+                ),
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = "Review Weekly Goals & Priorities",
+                    description = "Set top 3 focal milestones for the upcoming cycle",
+                    dayOfWeek = "MON",
+                    isCompleted = true,
+                    priority = "HIGH",
+                    category = "Planning",
+                    targetTimeMinutes = 30
+                ),
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = "Mid-week Energy Calibration",
+                    description = "Do a 15-minute box breathing reset & desk stretches",
+                    dayOfWeek = "WED",
+                    isCompleted = false,
+                    priority = "MEDIUM",
+                    category = "Wellness",
+                    targetTimeMinutes = 15
+                ),
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = "Finish Major Project Milestone",
+                    description = "Submit or complete primary work/study deliverables",
+                    dayOfWeek = "THU",
+                    isCompleted = false,
+                    priority = "HIGH",
+                    category = "Work",
+                    targetTimeMinutes = 180
+                ),
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = "Inbox Zero & Desk Declutter",
+                    description = "Clear digital tabs, clean workspace for a fresh weekend",
+                    dayOfWeek = "FRI",
+                    isCompleted = false,
+                    priority = "LOW",
+                    category = "Organize",
+                    targetTimeMinutes = 20
+                )
+            )
+            defaults.forEach { weeklyPlanDao.insertWeeklyPlan(it) }
+        }
     }
 }
 

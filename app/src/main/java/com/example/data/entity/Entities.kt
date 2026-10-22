@@ -68,7 +68,9 @@ data class HabitEntity(
     val startDateMillis: Long = System.currentTimeMillis(),
     val isActive: Boolean = true,
     val isChallenge: Boolean = false,
-    val challengeDays: Int = 30 // Target days for Challenge (e.g. 7, 14, 21, 30, 75, 100)
+    val challengeDays: Int = 30, // Target days for Challenge (e.g. 7, 14, 21, 30, 75, 100, or custom)
+    val reminderType: String = "NOTIFICATION", // "NOTIFICATION", "ALARM", "BOTH"
+    val reminderSound: String = "zen_bell" // Notification or Alarm sound
 )
 
 @Entity(tableName = "habit_completions")
@@ -171,4 +173,35 @@ data class ChatMessageEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val attachmentUri: String? = null,
     val category: String = "chat" // "chat", "daily_analysis", "weekly_analysis", "monthly_analysis", "coach"
+)
+
+@Entity(tableName = "daily_routines")
+data class DailyRoutineEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val timeSlot: String = "MORNING", // MORNING, DEEP_WORK, MIDDAY, AFTERNOON, EVENING, NIGHT
+    val scheduledTime: String = "07:00", // "HH:mm"
+    val durationMinutes: Int = 15,
+    val iconName: String = "wb_sunny",
+    val colorHex: String = "#8B5CF6",
+    val isCompletedToday: Boolean = false,
+    val lastCompletedDate: String = "", // "YYYY-MM-DD"
+    val cueNote: String = "",
+    val actionType: String = "NONE", // NONE, BREATHING, FOCUS, YOGA, JOURNAL, STRETCH
+    val sortOrder: Int = 0
+)
+
+@Entity(tableName = "weekly_plans")
+data class WeeklyPlanEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val weekNumber: Int = 1,
+    val year: Int = 2026,
+    val title: String,
+    val description: String = "",
+    val dayOfWeek: String = "ALL", // "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN", "ALL"
+    val isCompleted: Boolean = false,
+    val priority: String = "HIGH", // HIGH, MEDIUM, LOW
+    val category: String = "General",
+    val targetTimeMinutes: Int = 0,
+    val createdAt: Long = System.currentTimeMillis()
 )

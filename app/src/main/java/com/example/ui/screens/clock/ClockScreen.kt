@@ -203,14 +203,17 @@ fun ClockScreen(
                             )
                         },
                         onTestRing = {
-                            viewModel.testTaskReminder("Alarm Test Sound & Vibration")
+                            viewModel.testRealAlarmAudio("DIGITAL_BEEP", "Alarm Test Sound & Vibration")
+                        },
+                        onPreviewSound = { soundType ->
+                            viewModel.previewAlarmSound(soundType)
                         }
                     )
                     1 -> BedtimeSection(
                         viewModel = viewModel,
                         bedtimeAlarms = alarms.filter { it.isBedtimeAlarm }
                     )
-                    2 -> StandaloneTimerSection()
+                    2 -> StandaloneTimerSection(viewModel = viewModel)
                     3 -> StopwatchSection()
                     4 -> WorldClockSection()
                 }
@@ -260,7 +263,8 @@ fun AlarmsSection(
     onDeleteAlarm: (AlarmEntity) -> Unit,
     onAddAlarmClick: () -> Unit,
     onQuickNap: (Int) -> Unit,
-    onTestRing: () -> Unit
+    onTestRing: () -> Unit,
+    onPreviewSound: (com.example.audio.AlarmSoundType) -> Unit = {}
 ) {
     val nextAlarmCountdown = remember(alarms) {
         calculateNextAlarmText(alarms)
@@ -297,12 +301,81 @@ fun AlarmsSection(
 
                     Button(
                         onClick = onTestRing,
-                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalCard),
+                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RoseUrgent.copy(alpha = 0.5f)),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = RoseUrgent, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Test Ring", style = MaterialTheme.typography.labelSmall, color = CyanAccent)
+                        Text("Ring Alarm Now", style = MaterialTheme.typography.labelSmall, color = RoseUrgent, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Real Alarm Sound Library Preview Card
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                borderColor = CyanAccent.copy(alpha = 0.35f)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Real Alarm Sound Library",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                        Text(
+                            text = "Tap to Preview",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyanAccent
+                        )
+                    }
+
+                    Text(
+                        text = "Authentic synthesized alarm streams that ring audibly with vibration:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        com.example.audio.AlarmSoundType.entries.forEach { soundType ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = CharcoalCardElevated,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                                modifier = Modifier.clickable { onPreviewSound(soundType) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = soundType.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextPrimary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -811,10 +884,13 @@ fun BedtimeSection(
 // 3. STANDALONE TIMER SECTION
 // -----------------------------------------------------------------------------
 @Composable
-fun StandaloneTimerSection() {
+fun StandaloneTimerSection(viewModel: RacerViewModel) {
     var totalSeconds by remember { mutableIntStateOf(300) } // 5 min default
     var remainingSeconds by remember { mutableIntStateOf(300) }
     var isRunning by remember { mutableStateOf(false) }
+    var timerAlarmRinging by remember { mutableStateOf(false) }
+
+    val ringingState by viewModel.alarmRingingState.collectAsState()
 
     LaunchedEffect(isRunning, remainingSeconds) {
         if (isRunning && remainingSeconds > 0) {
@@ -822,6 +898,9 @@ fun StandaloneTimerSection() {
             remainingSeconds -= 1
         } else if (isRunning && remainingSeconds == 0) {
             isRunning = false
+            timerAlarmRinging = true
+            // Trigger REAL alarm sound on STREAM_ALARM
+            viewModel.testRealAlarmAudio("DIGITAL_BEEP", "Timer Finished!")
         }
     }
 
@@ -835,6 +914,44 @@ fun StandaloneTimerSection() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
+        if (timerAlarmRinging && ringingState.isRinging) {
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    borderColor = RoseUrgent,
+                    backgroundColor = RoseUrgent.copy(alpha = 0.15f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Alarm, contentDescription = null, tint = RoseUrgent, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Timer Completed!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RoseUrgent)
+                                Text("Audible alarm stream is playing", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.dismissRingingAlarm()
+                                timerAlarmRinging = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = RoseUrgent),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("STOP ALARM", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Spacer(modifier = Modifier.height(10.dp))
 

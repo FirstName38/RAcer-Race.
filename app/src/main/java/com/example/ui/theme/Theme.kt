@@ -55,15 +55,21 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun RacerTheme(
-    darkTheme: Boolean = true, // Default to dark-first interface for calm digital focus
+    appTheme: AppTheme = AppTheme.MIDNIGHT_OLED,
+    appWallpaper: AppWallpaper = AppWallpaper.AURORA_WAVES,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val colorScheme = getThemeColorScheme(appTheme)
+    CompositionLocalProvider(
+        LocalAppTheme provides appTheme,
+        LocalAppWallpaper provides appWallpaper
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
 
 // Keep alias for compatibility
@@ -73,5 +79,5 @@ fun MyApplicationTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    RacerTheme(darkTheme = true, content = content)
+    RacerTheme(content = content)
 }

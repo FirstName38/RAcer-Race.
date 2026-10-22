@@ -30,10 +30,14 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object LumaAI : Screen("luma_ai", "Luma AI", Icons.Default.AutoAwesome)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     data object Calendar : Screen("calendar", "Calendar", Icons.Default.CalendarMonth)
+    data object DailyRoutine : Screen("daily_routine", "Daily Routine", Icons.Default.Schedule)
+    data object WeeklyPlan : Screen("weekly_plan", "Weekly Plan", Icons.Default.CalendarMonth)
 }
 
 val MainNavigationItems = listOf(
     Screen.Home,
+    Screen.WeeklyPlan,
+    Screen.DailyRoutine,
     Screen.Focus,
     Screen.SessionDashboard,
     Screen.Tasks,

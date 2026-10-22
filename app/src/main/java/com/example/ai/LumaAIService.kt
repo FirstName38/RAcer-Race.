@@ -23,15 +23,14 @@ class LumaAIService(private val repository: RacerRepository) {
         val contextPrompt = buildGroundingContext()
 
         val fullPrompt = buildString {
-            append("You are Luma, an empathetic, highly intelligent, ADHD-friendly study coach and productivity companion in the RAcer app.\n")
-            append("Your specializations: Personalized Study Plans, Exam Preparation Strategies, Spaced Repetition, Active Recall, Syllabus Deconstruction, Focus Rhythm Optimization, and Cognitive Fatigue Management.\n")
-            append("Style: Warm, encouraging, structured, practical, formatted with clean bullet points and clear emojis. Zero guilt, low cognitive friction.\n\n")
-            append("When discussing study plans or exam prep:\n")
-            append("- Deconstruct large subjects into realistic, high-yield chunks.\n")
-            append("- Recommend specific Focus Timer intervals (e.g. 25m Pomodoro or 15m ADHD gentle blocks with 5m active breaks).\n")
-            append("- Emphasize active recall, past-paper practice, and spaced revision over passive reading.\n")
-            append("- Suggest practical rest, hydration, and sleep hygiene before exams.\n\n")
-            append("--- USER'S PERMITTED DATA CONTEXT ---\n")
+            append("You are Luma, an exceptionally brilliant, universal AI intellect and empathetic cognitive companion in FocusFlow.\n")
+            append("YOUR KNOWLEDGE DOMAIN: Universal and boundless. You possess deep knowledge across all human fields: computer science, software engineering, code debugging (Kotlin, Python, JS, C++, etc.), mathematics, physics, biology, history, world trivia, literature, philosophy, finance, psychology, academic study, essay writing, and creative problem solving.\n")
+            append("YOUR INTEGRATION WITH ON-DEVICE APP STORAGE: You are simultaneously grounded with real-time telemetry from the user's focus sessions, daily routines, tasks, habits, weekly plans, and streak records stored on this device.\n")
+            append("INSTRUCTIONS:\n")
+            append("- When asked about programming, science, math, history, writing, philosophy, or general knowledge: Answer comprehensively with authoritative, step-by-step explanations, code blocks, and clear reasoning.\n")
+            append("- When asked about productivity, habits, tasks, focus, or study routines: Combine your universal expertise with their real app storage data (metrics, streaks, pending tasks, weekly goals).\n")
+            append("- Tone: Warm, highly intelligent, encouraging, low cognitive friction, structured with clean Markdown headers and bullet points.\n\n")
+            append("--- USER'S PERMITTED DATA STORAGE CONTEXT ---\n")
             append(contextPrompt)
             append("\n--- USER QUERY ---\n")
             append(userMessage)
@@ -510,6 +509,29 @@ class LumaAIService(private val repository: RacerRepository) {
         val stats = repository.calculateStats()
 
         return when {
+            "code" in q || "kotlin" in q || "python" in q || "bug" in q || "function" in q || "programming" in q || "algorithm" in q -> {
+                """
+                💻 Luma Universal Engineering & Code Architecture:
+                
+                • Clean Architecture & Single Responsibility: Isolate data sources, domain models, and UI states.
+                • In Kotlin/Compose: Prefer StateFlow, Immutable data classes, and avoid side effects outside `LaunchedEffect`.
+                • Asynchronous Flow: Use coroutine builders with proper dispatchers (`Dispatchers.IO` for disk/network, `Dispatchers.Main` for UI state updates).
+                • Error Handling: Wrap external I/O operations in `runCatching` or typed Sealed Results (`Result.Success` / `Result.Failure`).
+                
+                💡 Tip: To run real-time AI code generation and instant debugging, you can add your Gemini API key in Settings!
+                """.trimIndent()
+            }
+            "math" in q || "physics" in q || "formula" in q || "calculate" in q || "science" in q -> {
+                """
+                🔬 Luma Universal Science & Logic Framework:
+                
+                • Scientific First-Principles: Break the problem down into fundamental axioms and equations before synthesizing.
+                • Dimensional Analysis: Always verify units on both sides of any equality.
+                • Spaced Retrieval: Practice deriving equations from memory rather than memorizing formula tables.
+                
+                💡 Need a specific step-by-step mathematical proof or problem solved? Add your Gemini key in Settings for full interactive multi-step derivations!
+                """.trimIndent()
+            }
             "study" in q || "exam" in q || "revision" in q || "test" in q || "syllabus" in q -> {
                 """
                 📚 Luma's Study & Exam Coach Strategy:
@@ -520,10 +542,18 @@ class LumaAIService(private val repository: RacerRepository) {
                 4. 💡 Need a tailored plan? Use the "Study Plan" or "Exam Plan" button above for a complete countdown roadmap!
                 """.trimIndent()
             }
-            "productive" in q || "week" in q || "progress" in q -> {
+            "weekly" in q || "plan" in q || "week" in q -> {
+                val plans = repository.allWeeklyPlans.firstOrNull() ?: emptyList()
+                val done = plans.count { it.isCompleted }
+                val total = plans.size
+                val rate = if (total > 0) (done.toFloat() / total * 100f).toInt() else 0
+                val status = if (rate >= 70) "🟢 On Track (>= 70%)" else "🔴 Action Needed (< 70%)"
+                "You have $total weekly goals planned, with $done completed ($rate% progress, $status). You have ${stats.weekSeconds / 60}m of focus logged this week!"
+            }
+            "productive" in q || "progress" in q -> {
                 "You have logged ${stats.weekSeconds / 60} minutes of deep focus this week with a ${stats.completionRate.toInt()}% completion rate. Your current focus streak is ${stats.currentStreak} day(s). You focus best around ${stats.bestHourOfDay}:00."
             }
-            "work on" in q || "task" in q || "today" in q || "plan" in q -> {
+            "work on" in q || "task" in q || "today" in q -> {
                 val tasks = repository.allActiveTasks.firstOrNull() ?: emptyList()
                 val pending = tasks.filter { !it.isCompleted }
                 if (pending.isNotEmpty()) {
@@ -540,7 +570,7 @@ class LumaAIService(private val repository: RacerRepository) {
                 "Your focus streak is currently ${stats.currentStreak} days. Remember that consistency is about returning gently when interrupted, not perfection."
             }
             else -> {
-                "I'm here with you in your study & focus flow! You have ${stats.todaySeconds / 60} minutes of focus logged today. Ask me to formulate a study plan, build an exam revision countdown, or deconstruct a difficult topic."
+                "I am Luma, your universal AI companion with knowledge across coding, science, mathematics, history, literature, and study strategies, deeply integrated with your app storage! You have ${stats.todaySeconds / 60}m of focus recorded today and a ${stats.currentStreak}-day streak. Ask me anything—from debugging algorithms to building tailored study roadmaps!"
             }
         }
     }

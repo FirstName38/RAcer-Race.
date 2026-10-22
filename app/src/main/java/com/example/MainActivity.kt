@@ -65,6 +65,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.ui.components.AlarmRingingDialog
 import com.example.ui.components.StreakPill
 import com.example.ui.navigation.Screen
 import com.example.ui.screens.ai.LumaAIScreen
@@ -76,6 +77,7 @@ import com.example.ui.screens.habits.HabitsScreen
 import com.example.ui.screens.home.HomeScreen
 import com.example.ui.screens.insights.InsightsScreen
 import com.example.ui.screens.journal.JournalScreen
+import com.example.ui.screens.routine.DailyRoutineScreen
 import com.example.ui.screens.sessions.SessionDashboardScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.tasks.TasksScreen
@@ -101,8 +103,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            RacerTheme {
-                RacerMainApp(viewModel = viewModel)
+            val appTheme by viewModel.currentAppTheme.collectAsState()
+            val appWallpaper by viewModel.currentAppWallpaper.collectAsState()
+
+            RacerTheme(appTheme = appTheme, appWallpaper = appWallpaper) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    com.example.ui.theme.AppWallpaperBackdrop(wallpaper = appWallpaper, theme = appTheme)
+                    RacerMainApp(viewModel = viewModel)
+                }
             }
         }
     }
@@ -192,6 +200,22 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                             onDismissRequest = { showQuickMenu = false },
                             modifier = Modifier.background(CharcoalCardElevated)
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("Weekly Plan & Objectives", color = TextPrimary) },
+                                leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = CyanAccent) },
+                                onClick = {
+                                    showQuickMenu = false
+                                    navController.navigate(Screen.WeeklyPlan.route)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Daily Routine Schedule", color = TextPrimary) },
+                                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = CyanAccent) },
+                                onClick = {
+                                    showQuickMenu = false
+                                    navController.navigate(Screen.DailyRoutine.route)
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("Session Dashboard & History", color = TextPrimary) },
                                 leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, tint = CyanAccent) },
@@ -287,12 +311,11 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                 }
             }
         },
-        containerColor = CharcoalDark
+        containerColor = Color.Transparent
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(CharcoalDark)
                 .padding(innerPadding)
         ) {
             NavHost(
@@ -308,9 +331,21 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                         onNavigateToTasks = { navController.navigate(Screen.Tasks.route) },
                         onNavigateToHabits = { navController.navigate(Screen.Habits.route) },
                         onNavigateToCalendar = { navController.navigate(Screen.Calendar.route) },
-                        onNavigateToJournal = { navController.navigate(Screen.Journal.route) },
                         onNavigateToAI = { navController.navigate(Screen.LumaAI.route) },
-                        onNavigateToSessions = { navController.navigate(Screen.SessionDashboard.route) }
+                        onNavigateToSessions = { navController.navigate(Screen.SessionDashboard.route) },
+                        onNavigateToRoutine = { navController.navigate(Screen.DailyRoutine.route) },
+                        onNavigateToWeeklyPlan = { navController.navigate(Screen.WeeklyPlan.route) }
+                    )
+                }
+                composable(Screen.WeeklyPlan.route) {
+                    com.example.ui.screens.weekly.WeeklyPlanScreen(viewModel = viewModel)
+                }
+                composable(Screen.DailyRoutine.route) {
+                    DailyRoutineScreen(
+                        viewModel = viewModel,
+                        onNavigateToFocus = { navController.navigate(Screen.Focus.route) },
+                        onNavigateToWellness = { navController.navigate(Screen.Wellness.route) },
+                        onNavigateToJournal = { navController.navigate(Screen.Journal.route) }
                     )
                 }
                 composable(Screen.Focus.route) {
@@ -361,6 +396,16 @@ fun RacerMainApp(viewModel: RacerViewModel) {
                 composable(Screen.Wellness.route) {
                     WellnessScreen(viewModel = viewModel)
                 }
+            }
+
+            // High Priority Live Alarm Ringing Dialog
+            val alarmRingingState by viewModel.alarmRingingState.collectAsState()
+            if (alarmRingingState.isRinging) {
+                AlarmRingingDialog(
+                    ringingState = alarmRingingState,
+                    onDismiss = { viewModel.dismissRingingAlarm() },
+                    onSnooze = { alarmId -> viewModel.snoozeRingingAlarm(alarmId, 5) }
+                )
             }
         }
     }

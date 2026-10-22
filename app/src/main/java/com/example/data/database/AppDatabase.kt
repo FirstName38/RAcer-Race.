@@ -88,9 +88,11 @@ class Converters {
         ChatMessageEntity::class,
         SpecialDateEntity::class,
         WellnessRoutineEntity::class,
-        WellnessLogEntity::class
+        WellnessLogEntity::class,
+        com.example.data.entity.DailyRoutineEntity::class,
+        com.example.data.entity.WeeklyPlanEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -105,6 +107,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
     abstract fun specialDateDao(): SpecialDateDao
     abstract fun wellnessDao(): WellnessDao
+    abstract fun dailyRoutineDao(): com.example.data.dao.DailyRoutineDao
+    abstract fun weeklyPlanDao(): com.example.data.dao.WeeklyPlanDao
 
     companion object {
         @Volatile

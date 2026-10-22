@@ -22,11 +22,13 @@ import com.example.data.model.FocusSound
 import com.example.data.model.FocusWallpaper
 import com.example.data.model.HabitFrequency
 import com.example.data.model.JournalMood
+import com.example.data.entity.WeeklyPlanEntity
 import com.example.data.model.TaskPriority
 import com.example.data.repository.FocusStatistics
 import com.example.data.repository.RacerRepository
 import com.example.receiver.AlarmScheduler
 import com.example.receiver.TaskScheduler
+import java.util.Calendar
 import com.example.service.FocusTimerService
 import com.example.service.TimerUiState
 import com.example.usage.AppUsageHelper
@@ -58,6 +60,10 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     val allSpecialDates = repository.allSpecialDates.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val allWellnessRoutines = repository.allWellnessRoutines.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val allWellnessLogs = repository.allWellnessLogs.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allDailyRoutines = repository.allDailyRoutines.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allWeeklyPlans = repository.allWeeklyPlans.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val alarmRingingState = com.example.audio.RealAlarmAudioPlayer.ringingState
 
     private val _stats = MutableStateFlow(FocusStatistics())
     val stats: StateFlow<FocusStatistics> = _stats.asStateFlow()
@@ -71,12 +77,17 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     private val _aiResponseText = MutableStateFlow<String?>(null)
     val aiResponseText: StateFlow<String?> = _aiResponseText.asStateFlow()
 
-    // Configurable Settings State
+    // Configurable Settings & Visual Theme State
     val soundVolume = MutableStateFlow(0.8f)
     val selectedSound = MutableStateFlow(FocusSound.NONE)
     val selectedWallpaper = MutableStateFlow(FocusWallpaper.DARK_MINIMAL.id)
     val adhdReducedPressure = MutableStateFlow(false)
     val hideRemainingTime = MutableStateFlow(false)
+
+    val currentAppTheme = MutableStateFlow(com.example.ui.theme.AppTheme.MIDNIGHT_OLED)
+    val currentAppWallpaper = MutableStateFlow(com.example.ui.theme.AppWallpaper.AURORA_WAVES)
+    val weekStartDay = MutableStateFlow("MONDAY") // MONDAY, SUNDAY, SATURDAY
+    val customHabitCategories = MutableStateFlow<List<String>>(emptyList())
 
     // Custom Pomodoro Preferences
     val customFocusMinutes = MutableStateFlow(25)
@@ -89,6 +100,70 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         refreshStats()
         loadUsage()
         seedWellness()
+        seedDailyRoutines()
+        loadVisualPreferences()
+        seedWeeklyPlans()
+    }
+
+    private fun loadVisualPreferences() {
+        viewModelScope.launch {
+            val savedThemeId = repository.getSetting("app_theme_id", com.example.ui.theme.AppTheme.MIDNIGHT_OLED.id)
+            currentAppTheme.value = com.example.ui.theme.AppTheme.entries.find { it.id == savedThemeId }
+                ?: com.example.ui.theme.AppTheme.MIDNIGHT_OLED
+
+            val savedWallpaperId = repository.getSetting("app_wallpaper_id", com.example.ui.theme.AppWallpaper.AURORA_WAVES.id)
+            currentAppWallpaper.value = com.example.ui.theme.AppWallpaper.entries.find { it.id == savedWallpaperId }
+                ?: com.example.ui.theme.AppWallpaper.AURORA_WAVES
+
+            val savedWeekStart = repository.getSetting("week_start_day", "MONDAY")
+            weekStartDay.value = savedWeekStart
+
+            customHabitCategories.value = repository.getCustomHabitCategories()
+        }
+    }
+
+    private fun seedWeeklyPlans() {
+        viewModelScope.launch {
+            val cal = Calendar.getInstance()
+            val year = cal.get(Calendar.YEAR)
+            val week = cal.get(Calendar.WEEK_OF_YEAR)
+            repository.seedDefaultWeeklyPlansIfEmpty(week, year)
+        }
+    }
+
+    fun setAppTheme(theme: com.example.ui.theme.AppTheme) {
+        currentAppTheme.value = theme
+        viewModelScope.launch {
+            repository.setSetting("app_theme_id", theme.id)
+        }
+    }
+
+    fun setAppWallpaper(wallpaper: com.example.ui.theme.AppWallpaper) {
+        currentAppWallpaper.value = wallpaper
+        viewModelScope.launch {
+            repository.setSetting("app_wallpaper_id", wallpaper.id)
+        }
+    }
+
+    fun setWeekStartDay(day: String) {
+        weekStartDay.value = day
+        viewModelScope.launch {
+            repository.setSetting("week_start_day", day)
+        }
+    }
+
+    fun addCustomHabitCategory(cat: String) {
+        viewModelScope.launch {
+            repository.addCustomHabitCategory(cat)
+            customHabitCategories.value = repository.getCustomHabitCategories()
+        }
+    }
+
+    private fun seedDailyRoutines() {
+        viewModelScope.launch {
+            repository.seedDefaultDailyRoutinesIfEmpty()
+            repository.checkDailyRoutineReset()
+        }
     }
 
     private fun seedWellness() {
@@ -333,7 +408,9 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         colorHex: String = "#8B5CF6",
         reminderTimeString: String? = null,
         reminderContext: String = "",
-        reminderEnabled: Boolean = false
+        reminderEnabled: Boolean = false,
+        reminderType: String = "NOTIFICATION",
+        reminderSound: String = "zen_bell"
     ) {
         viewModelScope.launch {
             val id = repository.insertHabit(
@@ -346,7 +423,9 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     reminderTimeString = reminderTimeString,
                     reminderContext = reminderContext,
                     reminderEnabled = reminderEnabled,
-                    isChallenge = false
+                    isChallenge = false,
+                    reminderType = reminderType,
+                    reminderSound = reminderSound
                 )
             )
             if (reminderEnabled && !reminderTimeString.isNullOrBlank()) {
@@ -369,7 +448,9 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         colorHex: String = "#EC4899",
         reminderTimeString: String? = null,
         reminderContext: String = "",
-        reminderEnabled: Boolean = false
+        reminderEnabled: Boolean = false,
+        reminderType: String = "NOTIFICATION",
+        reminderSound: String = "zen_bell"
     ) {
         viewModelScope.launch {
             val id = repository.insertHabit(
@@ -382,7 +463,9 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     challengeDays = challengeDays,
                     reminderTimeString = reminderTimeString,
                     reminderContext = reminderContext,
-                    reminderEnabled = reminderEnabled
+                    reminderEnabled = reminderEnabled,
+                    reminderType = reminderType,
+                    reminderSound = reminderSound
                 )
             )
             if (reminderEnabled && !reminderTimeString.isNullOrBlank()) {
@@ -397,8 +480,47 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateHabit(habit: HabitEntity) {
+        viewModelScope.launch {
+            repository.updateHabit(habit)
+            if (habit.reminderEnabled && !habit.reminderTimeString.isNullOrBlank()) {
+                AlarmScheduler.scheduleHabitReminder(
+                    context = getApplication(),
+                    habitId = habit.id,
+                    timeString = habit.reminderTimeString,
+                    habitName = habit.name,
+                    contextNote = habit.reminderContext
+                )
+            } else {
+                AlarmScheduler.cancelHabitReminder(getApplication(), habit.id)
+            }
+        }
+    }
+
+    fun deleteHabit(habit: HabitEntity) {
+        viewModelScope.launch {
+            AlarmScheduler.cancelHabitReminder(getApplication(), habit.id)
+            repository.deleteHabit(habit)
+        }
+    }
+
+    fun deleteHabitById(id: Long) {
+        viewModelScope.launch {
+            AlarmScheduler.cancelHabitReminder(getApplication(), id)
+            repository.deleteHabitById(id)
+        }
+    }
+
     fun testHabitAlarm(habitName: String = "Habit Streak Alarm") {
         AlarmScheduler.testImmediateAlarmNotification(getApplication(), habitName)
+    }
+
+    fun previewNotificationSound(soundName: String) {
+        com.example.audio.RealNotificationSoundPlayer.playNotification(getApplication(), soundName, withVibrate = true)
+    }
+
+    fun previewAlarmSound(soundName: String) {
+        com.example.audio.RealAlarmAudioPlayer.previewSound(getApplication(), soundName)
     }
 
     fun toggleHabitToday(habitId: Long) {
@@ -426,9 +548,49 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteHabit(habit: HabitEntity) {
+    // --- Weekly Plans Actions ---
+    fun addWeeklyPlan(
+        title: String,
+        description: String = "",
+        dayOfWeek: String = "ALL",
+        priority: String = "HIGH",
+        category: String = "General",
+        targetMinutes: Int = 0,
+        weekNumber: Int,
+        year: Int
+    ) {
         viewModelScope.launch {
-            repository.deleteHabit(habit)
+            repository.insertWeeklyPlan(
+                WeeklyPlanEntity(
+                    weekNumber = weekNumber,
+                    year = year,
+                    title = title,
+                    description = description,
+                    dayOfWeek = dayOfWeek,
+                    priority = priority,
+                    category = category,
+                    targetTimeMinutes = targetMinutes,
+                    isCompleted = false
+                )
+            )
+        }
+    }
+
+    fun updateWeeklyPlan(plan: WeeklyPlanEntity) {
+        viewModelScope.launch {
+            repository.updateWeeklyPlan(plan)
+        }
+    }
+
+    fun deleteWeeklyPlan(id: Long) {
+        viewModelScope.launch {
+            repository.deleteWeeklyPlan(id)
+        }
+    }
+
+    fun toggleWeeklyPlan(id: Long, isCompleted: Boolean) {
+        viewModelScope.launch {
+            repository.toggleWeeklyPlan(id, isCompleted)
         }
     }
 
@@ -573,6 +735,86 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.deleteAlarm(alarmId)
             AlarmScheduler.cancelAlarm(getApplication(), alarmId)
+        }
+    }
+
+    fun dismissRingingAlarm() {
+        com.example.audio.RealAlarmAudioPlayer.stopAlarm(getApplication())
+    }
+
+    fun snoozeRingingAlarm(alarmId: Long, minutes: Int = 5) {
+        val app = getApplication<android.app.Application>()
+        com.example.audio.RealAlarmAudioPlayer.stopAlarm(app)
+        val cal = java.util.Calendar.getInstance().apply {
+            add(java.util.Calendar.MINUTE, minutes)
+        }
+        AlarmScheduler.scheduleAlarm(
+            context = app,
+            alarmId = if (alarmId != 0L) alarmId else System.currentTimeMillis(),
+            hour = cal.get(java.util.Calendar.HOUR_OF_DAY),
+            minute = cal.get(java.util.Calendar.MINUTE),
+            label = "Snoozed (${minutes}m)",
+            vibrate = true,
+            isBedtime = false
+        )
+    }
+
+    fun testRealAlarmAudio(soundName: String = "DIGITAL_BEEP", label: String = "Test Real Alarm") {
+        val cal = java.util.Calendar.getInstance()
+        com.example.audio.RealAlarmAudioPlayer.startAlarm(
+            context = getApplication(),
+            alarmId = 9999L,
+            label = label,
+            hour = cal.get(java.util.Calendar.HOUR_OF_DAY),
+            minute = cal.get(java.util.Calendar.MINUTE),
+            soundName = soundName
+        )
+    }
+
+    fun previewAlarmSound(soundType: com.example.audio.AlarmSoundType) {
+        com.example.audio.RealAlarmAudioPlayer.previewSound(getApplication(), soundType, 3500L)
+    }
+
+    // --- Daily Routine Actions ---
+    fun toggleDailyRoutine(routineId: Long) {
+        viewModelScope.launch {
+            repository.toggleDailyRoutine(routineId)
+        }
+    }
+
+    fun addDailyRoutine(
+        title: String,
+        timeSlot: String = "MORNING",
+        scheduledTime: String = "07:00",
+        durationMinutes: Int = 15,
+        cueNote: String = "",
+        actionType: String = "NONE",
+        colorHex: String = "#8B5CF6"
+    ) {
+        viewModelScope.launch {
+            repository.insertDailyRoutine(
+                com.example.data.entity.DailyRoutineEntity(
+                    title = title,
+                    timeSlot = timeSlot,
+                    scheduledTime = scheduledTime,
+                    durationMinutes = durationMinutes,
+                    cueNote = cueNote,
+                    actionType = actionType,
+                    colorHex = colorHex
+                )
+            )
+        }
+    }
+
+    fun deleteDailyRoutine(routineId: Long) {
+        viewModelScope.launch {
+            repository.deleteDailyRoutine(routineId)
+        }
+    }
+
+    fun resetDailyRoutines() {
+        viewModelScope.launch {
+            repository.resetDailyRoutines()
         }
     }
 

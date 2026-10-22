@@ -667,11 +667,13 @@ fun TaskCard(
                     )
                 }
 
-                Text(
-                    text = "${task.estimatedMinutes}m",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted
-                )
+                if (task.estimatedMinutes > 0) {
+                    Text(
+                        text = "${task.estimatedMinutes}m",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted
+                    )
+                }
             }
         }
     }
@@ -895,7 +897,7 @@ fun AddTaskBottomSheet(
     var description by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf(TaskPriority.MEDIUM) }
     var category by remember { mutableStateOf("Work") }
-    var estimatedMinutes by remember { mutableIntStateOf(25) }
+    var estimatedMinutesStr by remember { mutableStateOf("") } // Optional: user enters if desired
     var isGeneratingMicroSteps by remember { mutableStateOf(false) }
 
     // Future Scheduling State
@@ -1219,10 +1221,12 @@ fun AddTaskBottomSheet(
                 )
 
                 OutlinedTextField(
-                    value = estimatedMinutes.toString(),
-                    onValueChange = { estimatedMinutes = it.toIntOrNull() ?: 25 },
-                    label = { Text("Est. Minutes") },
+                    value = estimatedMinutesStr,
+                    onValueChange = { text -> estimatedMinutesStr = text.filter { it.isDigit() } },
+                    label = { Text("Est. Mins (Optional)") },
+                    placeholder = { Text("None") },
                     modifier = Modifier.weight(1f),
+                    singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = CyanAccent,
                         unfocusedBorderColor = CharcoalBorder
@@ -1264,7 +1268,7 @@ fun AddTaskBottomSheet(
                             description,
                             priority,
                             category,
-                            estimatedMinutes,
+                            estimatedMinutesStr.toIntOrNull() ?: 0,
                             "[]",
                             dueMillis,
                             dueTimeStr,

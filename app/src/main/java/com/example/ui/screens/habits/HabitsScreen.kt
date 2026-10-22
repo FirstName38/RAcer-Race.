@@ -30,11 +30,14 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -59,6 +62,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -105,11 +109,14 @@ fun HabitsScreen(
 ) {
     val habits by viewModel.activeHabits.collectAsState()
     val completions by viewModel.allHabitCompletions.collectAsState()
+    val customCategories by viewModel.customHabitCategories.collectAsState()
     val todayStr = viewModel.repository.getTodayDateString()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0: All, 1: Habits, 2: Challenges
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedDetailHabit by remember { mutableStateOf<HabitEntity?>(null) }
+    var habitToEdit by remember { mutableStateOf<HabitEntity?>(null) }
+    var habitToDelete by remember { mutableStateOf<HabitEntity?>(null) }
 
     val filteredList = remember(habits, selectedTab) {
         when (selectedTab) {
@@ -187,7 +194,8 @@ fun HabitsScreen(
                     currentStreak = streak,
                     onToggleToday = { viewModel.toggleHabitToday(habit.id) },
                     onCardClick = { selectedDetailHabit = habit },
-                    onDelete = { viewModel.deleteHabit(habit) },
+                    onEdit = { habitToEdit = habit },
+                    onDelete = { habitToDelete = habit },
                     completions = completions.filter { it.habitId == habit.id }
                 )
             }
@@ -235,8 +243,10 @@ fun HabitsScreen(
 
         if (showAddDialog) {
             AddHabitChallengeBottomSheet(
+                customCategories = customCategories,
+                onAddNewCategory = { newCat -> viewModel.addCustomHabitCategory(newCat) },
                 onDismiss = { showAddDialog = false },
-                onAddHabit = { name, desc, label, freq, color, reminderTime, reminderCtx, reminderOn ->
+                onAddHabit = { name, desc, label, freq, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound ->
                     viewModel.addHabit(
                         name = name,
                         description = desc,
@@ -245,11 +255,13 @@ fun HabitsScreen(
                         colorHex = color,
                         reminderTimeString = reminderTime,
                         reminderContext = reminderCtx,
-                        reminderEnabled = reminderOn
+                        reminderEnabled = reminderOn,
+                        reminderType = reminderType,
+                        reminderSound = reminderSound
                     )
                     showAddDialog = false
                 },
-                onAddChallenge = { name, desc, label, days, color, reminderTime, reminderCtx, reminderOn ->
+                onAddChallenge = { name, desc, label, days, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound ->
                     viewModel.addChallenge(
                         name = name,
                         description = desc,
@@ -258,13 +270,60 @@ fun HabitsScreen(
                         colorHex = color,
                         reminderTimeString = reminderTime,
                         reminderContext = reminderCtx,
-                        reminderEnabled = reminderOn
+                        reminderEnabled = reminderOn,
+                        reminderType = reminderType,
+                        reminderSound = reminderSound
                     )
                     showAddDialog = false
                 },
-                onTestAlarm = { label ->
-                    viewModel.testHabitAlarm(label)
-                }
+                onPreviewNotification = { snd -> viewModel.previewNotificationSound(snd) },
+                onPreviewAlarm = { snd -> viewModel.previewAlarmSound(snd) }
+            )
+        }
+
+        if (habitToEdit != null) {
+            EditHabitChallengeBottomSheet(
+                habit = habitToEdit!!,
+                customCategories = customCategories,
+                onAddNewCategory = { newCat -> viewModel.addCustomHabitCategory(newCat) },
+                onDismiss = { habitToEdit = null },
+                onSave = { updatedHabit ->
+                    viewModel.updateHabit(updatedHabit)
+                    habitToEdit = null
+                },
+                onPreviewNotification = { snd -> viewModel.previewNotificationSound(snd) },
+                onPreviewAlarm = { snd -> viewModel.previewAlarmSound(snd) }
+            )
+        }
+
+        if (habitToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { habitToDelete = null },
+                title = { Text(if (habitToDelete!!.isChallenge) "Delete Challenge?" else "Delete Habit?", color = TextPrimary) },
+                text = {
+                    Text(
+                        "Are you sure you want to delete '${habitToDelete!!.name}' and all its tracking history? This action cannot be undone.",
+                        color = TextSecondary
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val id = habitToDelete!!.id
+                            habitToDelete = null
+                            viewModel.deleteHabitById(id)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseUrgent)
+                    ) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { habitToDelete = null }) {
+                        Text("Cancel", color = TextMuted)
+                    }
+                },
+                containerColor = CharcoalCardElevated
             )
         }
 
@@ -294,6 +353,7 @@ fun HabitChallengeCard(
     currentStreak: Int,
     onToggleToday: () -> Unit,
     onCardClick: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
     completions: List<HabitCompletionEntity>
 ) {
@@ -303,11 +363,24 @@ fun HabitChallengeCard(
         if (habit.isChallenge) RoseUrgent else VioletPrimary
     }
 
+    val completedCount = completions.count { it.isCompleted }
+    val completionRate: Float = if (habit.isChallenge) {
+        val targetDays = habit.challengeDays.coerceAtLeast(1)
+        (completedCount.toFloat() / targetDays * 100f).coerceIn(0f, 100f)
+    } else {
+        val totalWindow = 14
+        (completedCount.toFloat() / totalWindow * 100f).coerceIn(0f, 100f)
+    }
+
+    // Strict 70% threshold rule: Red if < 70%, Green if >= 70%
+    val isAbove70 = completionRate >= 70f
+    val thresholdColor = if (isAbove70) EmeraldSuccess else RoseUrgent
+
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCardClick() },
-        borderColor = if (isDoneToday) EmeraldSuccess.copy(alpha = 0.4f) else accentColor.copy(alpha = 0.25f)
+        borderColor = if (isDoneToday) thresholdColor.copy(alpha = 0.5f) else accentColor.copy(alpha = 0.25f)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -364,25 +437,60 @@ fun HabitChallengeCard(
                     }
                 }
 
-                IconButton(
-                    onClick = onToggleToday,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (isDoneToday) EmeraldSuccess else CharcoalCardElevated)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = "Complete Today",
-                        tint = if (isDoneToday) Color.Black else TextMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(CharcoalCardElevated)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            tint = CyanAccent,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(CharcoalCardElevated)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete",
+                            tint = RoseUrgent,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onToggleToday,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(if (isDoneToday) thresholdColor else CharcoalCardElevated)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Complete Today",
+                            tint = if (isDoneToday) Color.Black else TextMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Stats / Streak & Reminder Badge Row
+            // 70% Progress & Status Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -398,7 +506,7 @@ fun HabitChallengeCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (habit.isChallenge) {
-                            if (currentStreak > 0) "Day $currentStreak of ${habit.challengeDays}" else "Day 0 (Reset to 0)"
+                            if (currentStreak > 0) "Day $currentStreak of ${habit.challengeDays}" else "Day 0"
                         } else {
                             "$currentStreak day streak"
                         },
@@ -408,38 +516,43 @@ fun HabitChallengeCard(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (!habit.reminderTimeString.isNullOrBlank() || habit.reminderContext.isNotBlank()) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = CyanAccent.copy(alpha = 0.15f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Alarm,
-                                    contentDescription = null,
-                                    tint = CyanAccent,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = habit.reminderTimeString ?: habit.reminderContext,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = CyanAccent,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
+                // Threshold badge: Red if < 70%, Green if >= 70%
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = thresholdColor.copy(alpha = 0.16f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, thresholdColor.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = if (isAbove70) {
+                            "🟢 ${completionRate.toInt()}% (Above 70%)"
+                        } else {
+                            "🔴 ${completionRate.toInt()}% (Below 70%)"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = thresholdColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
                 }
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Visual Progress Track (Red when < 70%, Green when >= 70%)
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { (completionRate / 100f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = thresholdColor,
+                trackColor = CharcoalBorder,
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 7-day mini dot history
+            // 7-day mini dot history (Red if perfection score < 70%, Green if >= 70%)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -454,7 +567,11 @@ fun HabitChallengeCard(
                 }
 
                 daysList.forEach { (dateStr, dayInitial, isToday) ->
-                    val isDone = completions.any { it.dateString == dateStr && it.isCompleted }
+                    val comp = completions.find { it.dateString == dateStr && it.isCompleted }
+                    val isDone = comp != null
+                    val score = comp?.perfectionScore ?: 100
+                    val dotColor = if (!isDone) CharcoalCardElevated else if (score >= 70) EmeraldSuccess else RoseUrgent
+
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = dayInitial,
@@ -467,9 +584,7 @@ fun HabitChallengeCard(
                             modifier = Modifier
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    if (isDone) EmeraldSuccess else CharcoalCardElevated
-                                ),
+                                .background(dotColor),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isDone) {
@@ -486,25 +601,56 @@ fun HabitChallengeCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddHabitChallengeBottomSheet(
+    customCategories: List<String>,
+    onAddNewCategory: (String) -> Unit,
     onDismiss: () -> Unit,
-    onAddHabit: (name: String, desc: String, label: String, freq: HabitFrequency, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean) -> Unit,
-    onAddChallenge: (name: String, desc: String, label: String, days: Int, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean) -> Unit,
-    onTestAlarm: (label: String) -> Unit = {}
+    onAddHabit: (name: String, desc: String, label: String, freq: HabitFrequency, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String) -> Unit,
+    onAddChallenge: (name: String, desc: String, label: String, days: Int, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String) -> Unit,
+    onPreviewNotification: (String) -> Unit,
+    onPreviewAlarm: (String) -> Unit
 ) {
     var isChallengeMode by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var label by remember { mutableStateOf("Health") }
     var challengeDays by remember { mutableIntStateOf(30) }
-    var reminderContext by remember { mutableStateOf("Walk after eating") }
+    var customDaysInput by remember { mutableStateOf("") }
+    var reminderContext by remember { mutableStateOf("") } // Default is EMPTY demo only
     var reminderEnabled by remember { mutableStateOf(true) }
     var reminderTimeString by remember { mutableStateOf("08:30") }
+    var reminderType by remember { mutableStateOf("BOTH") } // NOTIFICATION, ALARM, BOTH
+    var reminderSound by remember { mutableStateOf("zen_bell") }
     var selectedColor by remember { mutableStateOf("#8B5CF6") }
 
-    val challengeDayOptions = listOf(7, 14, 21, 30, 60, 75, 100)
-    val labelOptions = listOf("Health", "Study", "Deep Work", "Mindfulness", "Fitness", "Discipline")
+    var showAddCategoryField by remember { mutableStateOf(false) }
+    var newCategoryInput by remember { mutableStateOf("") }
+
+    val baseCategories = listOf("Health", "Study", "Deep Work", "Mindfulness", "Fitness", "Discipline")
+    val allCategories = remember(customCategories) {
+        (baseCategories + customCategories).distinct()
+    }
+    val challengeDayPresets = listOf(7, 14, 21, 30, 60, 75, 100)
     val colorOptions = listOf("#8B5CF6", "#EC4899", "#06B6D4", "#10B981", "#F59E0B", "#EF4444")
     val timePresets = listOf("07:00", "08:30", "12:30", "15:00", "18:30", "21:00", "22:30")
+
+    val notificationSounds = listOf(
+        "zen_bell" to "Zen Bell",
+        "water_drop" to "Water Drop",
+        "crystal_sparkle" to "Crystal Sparkle",
+        "bamboo_tap" to "Bamboo Tap",
+        "cosmic_blip" to "Cosmic Blip",
+        "harp_glissando" to "Harp Glissando",
+        "gentle_pop" to "Gentle Pop",
+        "system_notification" to "System Chime"
+    )
+
+    val alarmMelodies = listOf(
+        "sunrise_melody" to "Sunrise Melody",
+        "cyber_synth" to "Cyber Synth",
+        "arcade_alert" to "Arcade Alert",
+        "heavy_pulse" to "Heavy Pulse",
+        "rooster_morning" to "Rooster Morning"
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -525,7 +671,7 @@ fun AddHabitChallengeBottomSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isChallengeMode) "New Challenge" else "New Habit",
+                        text = if (isChallengeMode) "New Strict Challenge" else "New Habit",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -536,7 +682,7 @@ fun AddHabitChallengeBottomSheet(
                 }
             }
 
-            // Selector: Habit vs Challenge
+            // Mode Selector: Habit vs Strict Challenge
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -566,13 +712,13 @@ fun AddHabitChallengeBottomSheet(
                 }
             }
 
-            // Name
+            // Title
             item {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Title / Action Name") },
-                    placeholder = { Text(if (isChallengeMode) "e.g. 75 Hard Deep Study" else "e.g. Walk after eating") },
+                    placeholder = { Text(if (isChallengeMode) "e.g. 75 Hard Deep Study" else "e.g. Morning Hydration") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -589,7 +735,7 @@ fun AddHabitChallengeBottomSheet(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description / Rule (Optional)") },
+                    label = { Text("Description / Personal Rule (Optional)") },
                     placeholder = { Text("e.g. At least 15 min brisk walk, no phone...") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -602,11 +748,63 @@ fun AddHabitChallengeBottomSheet(
                 )
             }
 
-            // Category / Label
+            // Category Selection + Custom Category Option
             item {
-                Text("Category Label", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Category / Area", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    TextButton(onClick = { showAddCategoryField = !showAddCategoryField }) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Custom Category", color = CyanAccent, fontSize = 12.sp)
+                    }
+                }
+
+                if (showAddCategoryField) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newCategoryInput,
+                            onValueChange = { newCategoryInput = it },
+                            label = { Text("New Category Name") },
+                            placeholder = { Text("e.g. Coding, Meditation, Art") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanAccent,
+                                unfocusedBorderColor = CharcoalBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                        Button(
+                            onClick = {
+                                if (newCategoryInput.isNotBlank()) {
+                                    val formatted = newCategoryInput.trim()
+                                    onAddNewCategory(formatted)
+                                    label = formatted
+                                    newCategoryInput = ""
+                                    showAddCategoryField = false
+                                }
+                            },
+                            enabled = newCategoryInput.isNotBlank(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.3f))
+                        ) {
+                            Text("Save", color = CyanAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(labelOptions) { opt ->
+                    items(allCategories) { opt ->
                         FilterChip(
                             selected = label == opt,
                             onClick = { label = opt },
@@ -620,17 +818,21 @@ fun AddHabitChallengeBottomSheet(
                 }
             }
 
-            // If Challenge: Duration days selection
+            // If Strict Challenge: Target Duration with Custom Day Input
             if (isChallengeMode) {
                 item {
                     Text("Target Duration (Days)", style = MaterialTheme.typography.labelMedium, color = RoseUrgent, fontWeight = FontWeight.Bold)
-                    Text("If you miss 1 day, your streak will reset to 0 and restart from Day 1.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Paced commitment: Miss 1 day resets streak to 0.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                    Spacer(modifier = Modifier.height(6.dp))
+
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(challengeDayOptions) { days ->
+                        items(challengeDayPresets) { days ->
                             FilterChip(
-                                selected = challengeDays == days,
-                                onClick = { challengeDays = days },
+                                selected = customDaysInput.isBlank() && challengeDays == days,
+                                onClick = {
+                                    customDaysInput = ""
+                                    challengeDays = days
+                                },
                                 label = { Text("$days Days", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RoseUrgent.copy(alpha = 0.25f),
@@ -639,10 +841,34 @@ fun AddHabitChallengeBottomSheet(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = customDaysInput,
+                        onValueChange = { text ->
+                            val clean = text.filter { it.isDigit() }
+                            customDaysInput = clean
+                            clean.toIntOrNull()?.let { days ->
+                                if (days > 0) challengeDays = days
+                            }
+                        },
+                        label = { Text("Or Enter Custom Days (e.g. 45, 90, 180)") },
+                        placeholder = { Text("Custom days") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoseUrgent,
+                            unfocusedBorderColor = CharcoalBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
                 }
             }
 
-            // Alarm & Reminder Option
+            // Reminder Options (Alarm, Notification, Both & Sound Variations)
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -655,8 +881,8 @@ fun AddHabitChallengeBottomSheet(
                                 Icon(Icons.Default.Alarm, contentDescription = null, tint = CyanAccent)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text("Daily Alarm & Trigger Reminder", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                                    Text("Rings system alarm & notification at scheduled time", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    Text("Reminder & Audio Cue", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                                    Text("Alert at scheduled daily time", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                                 }
                             }
                             Switch(
@@ -667,7 +893,94 @@ fun AddHabitChallengeBottomSheet(
                         }
 
                         if (reminderEnabled) {
-                            Text("Reminder Time (24h or Preset):", style = MaterialTheme.typography.labelSmall, color = CyanAccent)
+                            // Reminder Type: Notification, Alarm, Both
+                            Text("Reminder Type:", style = MaterialTheme.typography.labelSmall, color = CyanAccent, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    "NOTIFICATION" to "Notification",
+                                    "ALARM" to "Alarm Only",
+                                    "BOTH" to "Both"
+                                ).forEach { (typeVal, typeLabel) ->
+                                    val isSelected = reminderType == typeVal
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { reminderType = typeVal },
+                                        label = { Text(typeLabel, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = CyanAccent.copy(alpha = 0.25f),
+                                            selectedLabelColor = CyanAccent
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            // Notification Sound Variation
+                            if (reminderType == "NOTIFICATION" || reminderType == "BOTH") {
+                                Text("Notification Chime (Short Pleasant Tone):", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(notificationSounds) { (sndKey, sndLabel) ->
+                                        FilterChip(
+                                            selected = reminderSound == sndKey,
+                                            onClick = {
+                                                reminderSound = sndKey
+                                                onPreviewNotification(sndKey)
+                                            },
+                                            label = { Text(sndLabel, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = VioletPrimary.copy(alpha = 0.25f),
+                                                selectedLabelColor = VioletPrimary
+                                            )
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = { onPreviewNotification(reminderSound) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary.copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Preview Notification Sound 🔊", color = VioletPrimary, fontSize = 12.sp)
+                                }
+                            }
+
+                            // Alarm Melody Variation
+                            if (reminderType == "ALARM" || reminderType == "BOTH") {
+                                Text("Alarm Sound (Ringing Looping Waveform):", style = MaterialTheme.typography.labelSmall, color = RoseUrgent)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(alarmMelodies) { (sndKey, sndLabel) ->
+                                        FilterChip(
+                                            selected = reminderSound == sndKey,
+                                            onClick = {
+                                                reminderSound = sndKey
+                                                onPreviewAlarm(sndKey)
+                                            },
+                                            label = { Text(sndLabel, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = RoseUrgent.copy(alpha = 0.25f),
+                                                selectedLabelColor = RoseUrgent
+                                            )
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = { onPreviewAlarm(reminderSound) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RoseUrgent.copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = RoseUrgent, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Preview Alarm Melody 🔔", color = RoseUrgent, fontSize = 12.sp)
+                                }
+                            }
+
+                            Text("Reminder Time:", style = MaterialTheme.typography.labelSmall, color = CyanAccent)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 items(timePresets) { tPreset ->
                                     FilterChip(
@@ -682,42 +995,27 @@ fun AddHabitChallengeBottomSheet(
                                 }
                             }
 
-                            Row(
+                            OutlinedTextField(
+                                value = reminderTimeString,
+                                onValueChange = { reminderTimeString = it },
+                                label = { Text("Exact Time (HH:mm)") },
+                                placeholder = { Text("08:30") },
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedTextField(
-                                    value = reminderTimeString,
-                                    onValueChange = { reminderTimeString = it },
-                                    label = { Text("Exact Time (HH:mm)") },
-                                    placeholder = { Text("08:30") },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(10.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = CyanAccent,
-                                        unfocusedBorderColor = CharcoalBorder,
-                                        focusedTextColor = TextPrimary,
-                                        unfocusedTextColor = TextPrimary
-                                    ),
-                                    singleLine = true
-                                )
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanAccent,
+                                    unfocusedBorderColor = CharcoalBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                singleLine = true
+                            )
 
-                                Button(
-                                    onClick = { onTestAlarm(if (name.isNotBlank()) name else "Habit Alarm") },
-                                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.2f)),
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Test Alarm", color = CyanAccent, style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-
+                            // Optional trigger note with NO final hardcoded default
                             OutlinedTextField(
                                 value = reminderContext,
                                 onValueChange = { reminderContext = it },
-                                label = { Text("Trigger Note / Routine Cue") },
+                                label = { Text("Trigger Note / Routine Cue (Optional)") },
                                 placeholder = { Text("e.g. Walk after dinner, 10:00 PM wind down") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(10.dp),
@@ -761,9 +1059,31 @@ fun AddHabitChallengeBottomSheet(
                     onClick = {
                         if (name.isNotBlank()) {
                             if (isChallengeMode) {
-                                onAddChallenge(name, description, label, challengeDays, selectedColor, if (reminderEnabled) reminderTimeString else null, reminderContext, reminderEnabled)
+                                onAddChallenge(
+                                    name,
+                                    description,
+                                    label,
+                                    challengeDays,
+                                    selectedColor,
+                                    if (reminderEnabled) reminderTimeString else null,
+                                    reminderContext,
+                                    reminderEnabled,
+                                    reminderType,
+                                    reminderSound
+                                )
                             } else {
-                                onAddHabit(name, description, label, HabitFrequency.DAILY, selectedColor, if (reminderEnabled) reminderTimeString else null, reminderContext, reminderEnabled)
+                                onAddHabit(
+                                    name,
+                                    description,
+                                    label,
+                                    HabitFrequency.DAILY,
+                                    selectedColor,
+                                    if (reminderEnabled) reminderTimeString else null,
+                                    reminderContext,
+                                    reminderEnabled,
+                                    reminderType,
+                                    reminderSound
+                                )
                             }
                         }
                     },
@@ -775,6 +1095,459 @@ fun AddHabitChallengeBottomSheet(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(if (isChallengeMode) "Start $challengeDays-Day Challenge" else "Create Habit", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditHabitChallengeBottomSheet(
+    habit: HabitEntity,
+    customCategories: List<String>,
+    onAddNewCategory: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (HabitEntity) -> Unit,
+    onPreviewNotification: (String) -> Unit,
+    onPreviewAlarm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(habit.name) }
+    var description by remember { mutableStateOf(habit.description) }
+    var label by remember { mutableStateOf(habit.label) }
+    var challengeDays by remember { mutableIntStateOf(habit.challengeDays) }
+    var customDaysInput by remember { mutableStateOf(if (habit.isChallenge) habit.challengeDays.toString() else "") }
+    var reminderContext by remember { mutableStateOf(habit.reminderContext) }
+    var reminderEnabled by remember { mutableStateOf(habit.reminderEnabled) }
+    var reminderTimeString by remember { mutableStateOf(habit.reminderTimeString ?: "08:30") }
+    var reminderType by remember { mutableStateOf(habit.reminderType) }
+    var reminderSound by remember { mutableStateOf(habit.reminderSound) }
+    var selectedColor by remember { mutableStateOf(habit.colorHex) }
+
+    var showAddCategoryField by remember { mutableStateOf(false) }
+    var newCategoryInput by remember { mutableStateOf("") }
+
+    val baseCategories = listOf("Health", "Study", "Deep Work", "Mindfulness", "Fitness", "Discipline")
+    val allCategories = remember(customCategories) {
+        (baseCategories + customCategories).distinct()
+    }
+    val challengeDayPresets = listOf(7, 14, 21, 30, 60, 75, 100)
+    val colorOptions = listOf("#8B5CF6", "#EC4899", "#06B6D4", "#10B981", "#F59E0B", "#EF4444")
+    val timePresets = listOf("07:00", "08:30", "12:30", "15:00", "18:30", "21:00", "22:30")
+
+    val notificationSounds = listOf(
+        "zen_bell" to "Zen Bell",
+        "water_drop" to "Water Drop",
+        "crystal_sparkle" to "Crystal Sparkle",
+        "bamboo_tap" to "Bamboo Tap",
+        "cosmic_blip" to "Cosmic Blip",
+        "harp_glissando" to "Harp Glissando",
+        "gentle_pop" to "Gentle Pop",
+        "system_notification" to "System Chime"
+    )
+
+    val alarmMelodies = listOf(
+        "sunrise_melody" to "Sunrise Melody",
+        "cyber_synth" to "Cyber Synth",
+        "arcade_alert" to "Arcade Alert",
+        "heavy_pulse" to "Heavy Pulse",
+        "rooster_morning" to "Rooster Morning"
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = CharcoalCardElevated,
+        contentColor = TextPrimary
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (habit.isChallenge) "Edit Challenge" else "Edit Habit",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+            }
+
+            // Title
+            item {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Title / Action Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = if (habit.isChallenge) RoseUrgent else VioletPrimary,
+                        unfocusedBorderColor = CharcoalBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+            }
+
+            // Description
+            item {
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description / Rule (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = VioletPrimary,
+                        unfocusedBorderColor = CharcoalBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+            }
+
+            // Category Selection + Custom Category Option
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Category / Area", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                    TextButton(onClick = { showAddCategoryField = !showAddCategoryField }) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Custom Category", color = CyanAccent, fontSize = 12.sp)
+                    }
+                }
+
+                if (showAddCategoryField) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = newCategoryInput,
+                            onValueChange = { newCategoryInput = it },
+                            label = { Text("New Category Name") },
+                            placeholder = { Text("e.g. Coding, Meditation") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CyanAccent,
+                                unfocusedBorderColor = CharcoalBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                        Button(
+                            onClick = {
+                                if (newCategoryInput.isNotBlank()) {
+                                    val formatted = newCategoryInput.trim()
+                                    onAddNewCategory(formatted)
+                                    label = formatted
+                                    newCategoryInput = ""
+                                    showAddCategoryField = false
+                                }
+                            },
+                            enabled = newCategoryInput.isNotBlank(),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.3f))
+                        ) {
+                            Text("Save", color = CyanAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(allCategories) { opt ->
+                        FilterChip(
+                            selected = label == opt,
+                            onClick = { label = opt },
+                            label = { Text(opt, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = CyanAccent.copy(alpha = 0.25f),
+                                selectedLabelColor = CyanAccent
+                            )
+                        )
+                    }
+                }
+            }
+
+            // If Strict Challenge: Duration with Custom Days
+            if (habit.isChallenge) {
+                item {
+                    Text("Target Duration (Days)", style = MaterialTheme.typography.labelMedium, color = RoseUrgent, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(challengeDayPresets) { days ->
+                            FilterChip(
+                                selected = customDaysInput.isBlank() && challengeDays == days,
+                                onClick = {
+                                    customDaysInput = ""
+                                    challengeDays = days
+                                },
+                                label = { Text("$days Days", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RoseUrgent.copy(alpha = 0.25f),
+                                    selectedLabelColor = RoseUrgent
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    OutlinedTextField(
+                        value = customDaysInput,
+                        onValueChange = { text ->
+                            val clean = text.filter { it.isDigit() }
+                            customDaysInput = clean
+                            clean.toIntOrNull()?.let { days ->
+                                if (days > 0) challengeDays = days
+                            }
+                        },
+                        label = { Text("Custom Days (e.g. 45, 90, 180)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoseUrgent,
+                            unfocusedBorderColor = CharcoalBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                }
+            }
+
+            // Reminder Options
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Alarm, contentDescription = null, tint = CyanAccent)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text("Reminder & Audio Cue", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                                    Text("Alert at scheduled daily time", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                }
+                            }
+                            Switch(
+                                checked = reminderEnabled,
+                                onCheckedChange = { reminderEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent, checkedTrackColor = CyanAccent.copy(alpha = 0.5f))
+                            )
+                        }
+
+                        if (reminderEnabled) {
+                            Text("Reminder Type:", style = MaterialTheme.typography.labelSmall, color = CyanAccent, fontWeight = FontWeight.Bold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    "NOTIFICATION" to "Notification",
+                                    "ALARM" to "Alarm Only",
+                                    "BOTH" to "Both"
+                                ).forEach { (typeVal, typeLabel) ->
+                                    val isSelected = reminderType == typeVal
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { reminderType = typeVal },
+                                        label = { Text(typeLabel, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = CyanAccent.copy(alpha = 0.25f),
+                                            selectedLabelColor = CyanAccent
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            // Notification sounds
+                            if (reminderType == "NOTIFICATION" || reminderType == "BOTH") {
+                                Text("Notification Chime:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(notificationSounds) { (sndKey, sndLabel) ->
+                                        FilterChip(
+                                            selected = reminderSound == sndKey,
+                                            onClick = {
+                                                reminderSound = sndKey
+                                                onPreviewNotification(sndKey)
+                                            },
+                                            label = { Text(sndLabel, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = VioletPrimary.copy(alpha = 0.25f),
+                                                selectedLabelColor = VioletPrimary
+                                            )
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = { onPreviewNotification(reminderSound) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary.copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Preview Notification Sound 🔊", color = VioletPrimary, fontSize = 12.sp)
+                                }
+                            }
+
+                            // Alarm sounds
+                            if (reminderType == "ALARM" || reminderType == "BOTH") {
+                                Text("Alarm Sound:", style = MaterialTheme.typography.labelSmall, color = RoseUrgent)
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(alarmMelodies) { (sndKey, sndLabel) ->
+                                        FilterChip(
+                                            selected = reminderSound == sndKey,
+                                            onClick = {
+                                                reminderSound = sndKey
+                                                onPreviewAlarm(sndKey)
+                                            },
+                                            label = { Text(sndLabel, fontSize = 11.sp) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = RoseUrgent.copy(alpha = 0.25f),
+                                                selectedLabelColor = RoseUrgent
+                                            )
+                                        )
+                                    }
+                                }
+                                Button(
+                                    onClick = { onPreviewAlarm(reminderSound) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RoseUrgent.copy(alpha = 0.2f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = RoseUrgent, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Preview Alarm Melody 🔔", color = RoseUrgent, fontSize = 12.sp)
+                                }
+                            }
+
+                            Text("Reminder Time:", style = MaterialTheme.typography.labelSmall, color = CyanAccent)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(timePresets) { tPreset ->
+                                    FilterChip(
+                                        selected = reminderTimeString == tPreset,
+                                        onClick = { reminderTimeString = tPreset },
+                                        label = { Text(tPreset, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = CyanAccent.copy(alpha = 0.25f),
+                                            selectedLabelColor = CyanAccent
+                                        )
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = reminderTimeString,
+                                onValueChange = { reminderTimeString = it },
+                                label = { Text("Exact Time (HH:mm)") },
+                                placeholder = { Text("08:30") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanAccent,
+                                    unfocusedBorderColor = CharcoalBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                ),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
+                                value = reminderContext,
+                                onValueChange = { reminderContext = it },
+                                label = { Text("Trigger Note / Routine Cue (Optional)") },
+                                placeholder = { Text("e.g. Walk after dinner, 10:00 PM wind down") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = CyanAccent,
+                                    unfocusedBorderColor = CharcoalBorder,
+                                    focusedTextColor = TextPrimary,
+                                    unfocusedTextColor = TextPrimary
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Color selection
+            item {
+                Text("Color Accent", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    colorOptions.forEach { hex ->
+                        val c = Color(android.graphics.Color.parseColor(hex))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .clickable { selectedColor = hex },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selectedColor == hex) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        if (name.isNotBlank()) {
+                            onSave(
+                                habit.copy(
+                                    name = name,
+                                    description = description,
+                                    label = label,
+                                    challengeDays = challengeDays,
+                                    colorHex = selectedColor,
+                                    reminderTimeString = if (reminderEnabled) reminderTimeString else null,
+                                    reminderContext = reminderContext,
+                                    reminderEnabled = reminderEnabled,
+                                    reminderType = reminderType,
+                                    reminderSound = reminderSound
+                                )
+                            )
+                        }
+                    },
+                    enabled = name.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (habit.isChallenge) RoseUrgent else VioletPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -859,7 +1632,7 @@ fun HabitChallengeCalendarSheet(
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            text = "Tap any day to check completion & score quality:",
+                            text = "Tap any day to check completion & score quality (Red <70%, Green ≥70%):",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextSecondary
                         )
@@ -867,12 +1640,35 @@ fun HabitChallengeCalendarSheet(
 
                         // Grid of days
                         val completedCount = completions.count { it.isCompleted }
-                        Text(
-                            text = "$completedCount completed • Quality Avg: ${if (completedCount > 0) completions.map { it.perfectionScore }.average().toInt() else 100}%",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = EmeraldSuccess
-                        )
+                        val avgScore = if (completedCount > 0) completions.filter { it.isCompleted }.map { it.perfectionScore }.average().toInt() else 0
+                        val isAvgAbove70 = avgScore >= 70
+                        val avgScoreColor = if (isAvgAbove70) EmeraldSuccess else RoseUrgent
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "$completedCount completed • Quality Avg: $avgScore%",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = avgScoreColor
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = avgScoreColor.copy(alpha = 0.16f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, avgScoreColor.copy(alpha = 0.5f))
+                            ) {
+                                Text(
+                                    text = if (isAvgAbove70) "🟢 ON TRACK (≥70%)" else "🔴 BELOW 70% BENCHMARK",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = avgScoreColor,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -893,14 +1689,22 @@ fun HabitChallengeCalendarSheet(
                         val dateStr = daysList[index]
                         val comp = completions.find { it.dateString == dateStr && it.isCompleted }
                         val isDone = comp != null
+                        val score = comp?.perfectionScore ?: 100
                         val dayNumber = index + 1
+
+                        // Red if perfection score < 70%, Green only if >= 70%
+                        val boxBg = if (!isDone) {
+                            CharcoalCard
+                        } else if (score >= 70) {
+                            EmeraldSuccess.copy(alpha = 0.85f)
+                        } else {
+                            RoseUrgent.copy(alpha = 0.85f)
+                        }
 
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isDone) EmeraldSuccess.copy(alpha = 0.85f) else CharcoalCard
-                                )
+                                .background(boxBg)
                                 .clickable {
                                     activeDayDateStr = dateStr
                                     showDayDetailDialog = true
@@ -917,10 +1721,11 @@ fun HabitChallengeCalendarSheet(
                                 )
                                 if (isDone) {
                                     Text(
-                                        text = "${comp?.perfectionScore ?: 100}%",
+                                        text = "$score%",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontSize = 9.sp,
-                                        color = Color.Black.copy(alpha = 0.8f)
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
                                     )
                                 }
                             }
@@ -982,20 +1787,36 @@ fun HabitChallengeCalendarSheet(
 
                     if (isChecked) {
                         Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "How perfectly did you do it? ${score.toInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = AmberWarning
-                        )
+                        val isScoreAbove70 = score >= 70f
+                        val scoreColor = if (isScoreAbove70) EmeraldSuccess else RoseUrgent
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "How perfectly did you do it? ${score.toInt()}%",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = scoreColor
+                            )
+                            Text(
+                                text = if (isScoreAbove70) "🟢 Green (≥70% Standard)" else "🔴 Red (Below 70%)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = scoreColor
+                            )
+                        }
+
                         Slider(
                             value = score,
                             onValueChange = { score = it },
                             valueRange = 0f..100f,
                             steps = 10,
                             colors = SliderDefaults.colors(
-                                thumbColor = AmberWarning,
-                                activeTrackColor = AmberWarning,
+                                thumbColor = scoreColor,
+                                activeTrackColor = scoreColor,
                                 inactiveTrackColor = CharcoalBorder
                             )
                         )

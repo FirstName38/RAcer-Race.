@@ -31,12 +31,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.example.data.entity.WeeklyPlanEntity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,9 +76,10 @@ fun HomeScreen(
     onNavigateToTasks: () -> Unit,
     onNavigateToHabits: () -> Unit,
     onNavigateToCalendar: () -> Unit,
-    onNavigateToJournal: () -> Unit,
     onNavigateToAI: () -> Unit,
     onNavigateToSessions: () -> Unit,
+    onNavigateToRoutine: () -> Unit,
+    onNavigateToWeeklyPlan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val stats by viewModel.stats.collectAsState()
@@ -83,10 +87,41 @@ fun HomeScreen(
     val tasks by viewModel.activeTasks.collectAsState()
     val habits by viewModel.activeHabits.collectAsState()
     val habitCompletions by viewModel.allHabitCompletions.collectAsState()
+    val dailyRoutines by viewModel.allDailyRoutines.collectAsState()
+    val weeklyPlans by viewModel.allWeeklyPlans.collectAsState()
+    val weekStartDay by viewModel.weekStartDay.collectAsState()
     val todayDateStr = viewModel.repository.getTodayDateString()
 
     val greeting = rememberGreeting()
     val topTask = tasks.firstOrNull { !it.isCompleted }
+
+    val routineTotal = dailyRoutines.size
+    val routineCompleted = dailyRoutines.count { it.isCompletedToday }
+    val routineRate = if (routineTotal > 0) (routineCompleted.toFloat() / routineTotal * 100f) else 0f
+    val routineAbove70 = routineRate >= 70f
+    val routineColor = if (routineAbove70) EmeraldSuccess else RoseUrgent
+
+    // Dynamic Weekly Plan metrics
+    val cal = remember(weekStartDay) {
+        val firstDay = when (weekStartDay.uppercase()) {
+            "SUNDAY" -> Calendar.SUNDAY
+            "SATURDAY" -> Calendar.SATURDAY
+            else -> Calendar.MONDAY
+        }
+        Calendar.getInstance().apply {
+            firstDayOfWeek = firstDay
+            minimalDaysInFirstWeek = 4
+        }
+    }
+    val currentWeekNum = cal.get(Calendar.WEEK_OF_YEAR)
+    val maxWeeks = cal.getActualMaximum(Calendar.WEEK_OF_YEAR)
+    val weeksRemaining = (maxWeeks - currentWeekNum).coerceAtLeast(0)
+    val thisWeekPlans = weeklyPlans.filter { it.weekNumber == currentWeekNum }
+    val weeklyTotal = thisWeekPlans.size
+    val weeklyDone = thisWeekPlans.count { it.isCompleted }
+    val weeklyRate = if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal * 100f) else 0f
+    val weeklyAbove70 = weeklyRate >= 70f
+    val weeklyColor = if (weeklyAbove70) EmeraldSuccess else RoseUrgent
 
     LazyColumn(
         modifier = modifier
@@ -187,6 +222,198 @@ fun HomeScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary.copy(alpha = 0.25f))
                     ) {
                         Text("History →", color = VioletPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // Dedicated Daily Routine Section Card
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = CharcoalCardElevated,
+                borderColor = routineColor.copy(alpha = 0.5f),
+                onClick = onNavigateToRoutine
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(routineColor.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Repeat,
+                                    contentDescription = "Daily Routine",
+                                    tint = routineColor
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Daily Routine Planner",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "$routineCompleted of $routineTotal blocks completed",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = routineColor.copy(alpha = 0.16f)
+                        ) {
+                            Text(
+                                text = "${routineRate.toInt()}% " + (if (routineAbove70) "Optimal (>=70%)" else "Below 70%"),
+                                color = routineColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LinearProgressIndicator(
+                        progress = { if (routineTotal > 0) (routineCompleted.toFloat() / routineTotal).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = routineColor,
+                        trackColor = CharcoalBorder
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (routineAbove70) "● Routine on track (Green >= 70%)" else "● Routine needs focus (Red < 70%)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = routineColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Open Routine →",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyanAccent,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Dedicated Weekly Plan Section Card
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = CharcoalCardElevated,
+                borderColor = weeklyColor.copy(alpha = 0.5f),
+                onClick = onNavigateToWeeklyPlan
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(weeklyColor.copy(alpha = 0.18f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Weekly Plan",
+                                    tint = weeklyColor
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Weekly Plan (Week $currentWeekNum)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "$weeksRemaining weeks left in year • $weeklyDone of $weeklyTotal done",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = weeklyColor.copy(alpha = 0.16f)
+                        ) {
+                            Text(
+                                text = "${weeklyRate.toInt()}% " + (if (weeklyAbove70) "Target Met" else "Under 70%"),
+                                color = weeklyColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LinearProgressIndicator(
+                        progress = { if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = weeklyColor,
+                        trackColor = CharcoalBorder
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (weeklyAbove70) "● Weekly progress >= 70% (Success)" else "● Weekly progress < 70% (Needs action)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = weeklyColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "Manage Week →",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = CyanAccent,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -456,19 +683,41 @@ fun HomeScreen(
                     onClick = onNavigateToHabits
                 ) {
                     Column {
+                        val habitDoneTodayCount = habits.count { h -> habitCompletions.any { it.habitId == h.id && it.dateString == todayDateStr } }
+                        val habitRate = if (habits.isNotEmpty()) (habitDoneTodayCount.toFloat() / habits.size * 100f) else 0f
+                        val habitAbove70 = habitRate >= 70f
+                        val habitBadgeColor = if (habitAbove70) EmeraldSuccess else RoseUrgent
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Daily Habits",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = habitBadgeColor.copy(alpha = 0.16f)
+                                ) {
+                                    Text(
+                                        text = "${habitRate.toInt()}% " + (if (habitAbove70) "Target Met" else "Below 70%"),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = habitBadgeColor,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
-                                text = "Daily Habits",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "View All",
+                                text = "View All →",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = CyanAccent
                             )
