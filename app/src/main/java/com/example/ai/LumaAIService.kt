@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -16,7 +17,13 @@ class LumaAIService(private val repository: RacerRepository) {
         userMessage: String,
         imageBitmap: Bitmap? = null
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = repository.getSetting("ai_api_key", "")
+        val openaiKey = repository.getSetting("openai_api_key", "").ifBlank {
+            repository.getSetting("ai_api_key", "")
+        }
+        val geminiKey = repository.getSetting("gemini_api_key", "").ifBlank {
+            repository.getSetting("ai_api_key", "")
+        }
+        val provider = repository.getSetting("ai_provider", "AUTO")
         val endpoint = repository.getSetting("ai_endpoint", "")
 
         // Gather allowed context based on privacy toggles
@@ -36,15 +43,40 @@ class LumaAIService(private val repository: RacerRepository) {
             append(userMessage)
         }
 
-        val result = GeminiApiClient.generateContent(
-            prompt = fullPrompt,
-            apiKeyOverride = apiKey.ifBlank { null },
-            endpointOverride = endpoint.ifBlank { null },
-            bitmap = imageBitmap
-        )
+        val result: Result<String> = when {
+            provider == "OPENAI" || (provider == "AUTO" && openaiKey.startsWith("sk-")) -> {
+                val openAiRes = OpenAiApiClient.generateContent(fullPrompt, openaiKey)
+                if (openAiRes.isSuccess) openAiRes else GeminiApiClient.generateContent(
+                    prompt = fullPrompt,
+                    apiKeyOverride = geminiKey.ifBlank { null },
+                    endpointOverride = endpoint.ifBlank { null },
+                    bitmap = imageBitmap
+                )
+            }
+            geminiKey.isNotBlank() -> {
+                GeminiApiClient.generateContent(
+                    prompt = fullPrompt,
+                    apiKeyOverride = geminiKey,
+                    endpointOverride = endpoint.ifBlank { null },
+                    bitmap = imageBitmap
+                )
+            }
+            openaiKey.isNotBlank() -> {
+                OpenAiApiClient.generateContent(fullPrompt, openaiKey)
+            }
+            else -> {
+                // Try Gemini with server/BuildConfig key
+                GeminiApiClient.generateContent(
+                    prompt = fullPrompt,
+                    apiKeyOverride = null,
+                    endpointOverride = endpoint.ifBlank { null },
+                    bitmap = imageBitmap
+                )
+            }
+        }
 
         val responseText = result.getOrElse { error ->
-            // High quality offline fallback with rich academic planning algorithms
+            // High quality offline fallback with dynamic intent parsing, math, and contextual intelligence
             generateOfflineResponse(userMessage)
         }
 
@@ -505,74 +537,226 @@ class LumaAIService(private val repository: RacerRepository) {
     }
 
     private suspend fun generateOfflineResponse(query: String): String {
-        val q = query.lowercase(Locale.getDefault())
-        val stats = repository.calculateStats()
+        // 1. Instant mathematical evaluation for arithmetic and calculations (e.g. 2+2, 2+2=?, 5*10)
+        val mathAnswer = evaluateMathQuery(query)
+        if (mathAnswer != null) {
+            return mathAnswer
+        }
 
-        return when {
-            "code" in q || "kotlin" in q || "python" in q || "bug" in q || "function" in q || "programming" in q || "algorithm" in q -> {
+        val q = query.trim().lowercase(Locale.getDefault())
+        val stats = repository.calculateStats()
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val greetingTime = when (hour) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            in 17..21 -> "Good evening"
+            else -> "Hey night owl"
+        }
+
+        // 2. Greetings & Salutations
+        if (q in listOf("hi", "hello", "hey", "hola", "yo", "sup", "greetings") || q.startsWith("hi ") || q.startsWith("hello ") || q.startsWith("hey ") || "good morning" in q || "good afternoon" in q || "good evening" in q) {
+            return """
+                👋 $greetingTime! I'm Luma, right here with you.
+                
+                • Today's Focus Output: ${stats.todaySeconds / 60} minutes logged
+                • Current Streak: ${stats.currentStreak} day(s) 🔥
+                • Peak Flow Window: ~${stats.bestHourOfDay}:00
+                
+                What are we conquering right now? I can help you:
+                1. 🎯 Break down a big task or goal into effortless micro-steps
+                2. 📚 Generate a full multi-week Study or Exam prep roadmap
+                3. 💻 Architect code, explain algorithms, or debug logic
+                4. 🧘 Reset cognitive overload or start a 15-minute gentle focus sprint!
+            """.trimIndent()
+        }
+
+        // 3. Identity & Capabilities
+        if ("who are you" in q || "what can you do" in q || "introduce yourself" in q || "help me" in q) {
+            return """
+                ✨ I am **Luma**, your universal AI intellect and cognitive flow companion in FocusFlow.
+                
+                Here is what I can do with you:
+                • 🧠 **Universal Reasoning**: Ask me about computer science, physics, biology, history, mathematics, philosophy, literature, and essay writing.
+                • ⏱️ **ADHD Pacing & Micro-Steps**: Tell me any intimidating goal, and I'll break it down into zero-friction <10 minute actions.
+                • 📅 **Roadmap Generator**: Use the buttons above for custom multi-week Study Plans and Exam countdown strategies.
+                • 📊 **Grounding Telemetry**: I monitor your focus sessions (${stats.todaySeconds / 60}m today), active streaks (${stats.currentStreak} days), and pending tasks to tailor every recommendation.
+                
+                Just type whatever is on your mind!
+            """.trimIndent()
+        }
+
+        // 4. Fun, Humor, & Boredom
+        if ("joke" in q || "funny" in q || "make me laugh" in q || "bored" in q) {
+            val jokes = listOf(
+                "Why do programmers prefer dark mode? Because light attracts bugs! 🐛 But in RAcer, your dark themes also save battery on OLED screens.",
+                "Why did the cognitive scientist bring a ladder to work? To reach the high-order executive functions! 🧠 Take a 5-minute stretch break to reset your dopamine baseline.",
+                "There are 10 types of people in the world: those who understand binary, and those who don't. 😉 Ready for a quick 15-minute sprint?",
+                "Procrastination is like a rocking chair: it gives you something to do, but it doesn't get you anywhere. Let's start with just 2 minutes of focus right now!"
+            )
+            val selectedJoke = jokes[(query.hashCode().let { if (it < 0) -it else it }) % jokes.size]
+            return """
+                😄 Here's a thought for you:
+                
+                $selectedJoke
+                
+                💡 Tip: When boredom strikes during work, your dopamine receptors are seeking stimulation. Try switching your ambient sound to "Deep Focus Waves" or "Binaural 40Hz" in the Focus tab!
+            """.trimIndent()
+        }
+
+        // 5. Motivation & Overcoming Procrastination
+        if ("motivate" in q || "inspiration" in q || "tired" in q || "give up" in q || "lazy" in q || "procrastinat" in q || "start" in q && "can't" in q) {
+            return """
+                🔥 **Luma Momentum Protocol:**
+                
+                1. 🎯 **The 2-Minute Gateway**: You don't have to finish the entire project right now. You only need to open the tool and do 120 seconds of work. 85% of friction vanishes once the action starts.
+                2. 🧠 **Dopamine Follows Action, Not Waiting**: Motivation is an emotional byproduct of physical movement, not a prerequisite.
+                3. 🛡️ **Lower the Standards to Start**: Write a sloppy first draft. Write buggy pseudocode. You can always refine what exists, but you cannot edit a blank page.
+                
+                You already have a **${stats.currentStreak}-day streak** built up. Let's protect it with one gentle 15-minute ADHD timer block right now!
+            """.trimIndent()
+        }
+
+        // 6. Overwhelm, Anxiety & Burnout
+        if ("anxious" in q || "stress" in q || "overwhelm" in q || "burnout" in q || "panic" in q || "freaking out" in q || "struggling" in q) {
+            return """
+                🌿 **Breathe. Let's lower the pressure together.**
+                
+                When executive cognitive RAM is saturated, the brain triggers a fight-or-flight freeze. Here is your emergency protocol:
+                
+                1. 🌬️ **4-7-8 Physiological Sigh**: Inhale deeply through your nose for 4 seconds, hold for 7 seconds, then exhale slowly with a sigh for 8 seconds. This forces your vagus nerve to slow your heart rate.
+                2. 📝 **Externalize Everything**: Your working memory can only hold 4 items. Write every single thought onto a blank scratchpad without organizing it.
+                3. 🛑 **Declare "Minimum Viable Day"**: Pick just ONE single micro-task for today. Everything else can wait.
+                
+                Head over to the **Wellness & Movement** section in the Explore Hub whenever you need guided sensory grounding!
+            """.trimIndent()
+        }
+
+        // 7. Coding & Engineering
+        if ("code" in q || "kotlin" in q || "python" in q || "bug" in q || "function" in q || "programming" in q || "algorithm" in q || "software" in q || "git" in q) {
+            return """
+                💻 **Luma Universal Engineering Framework:**
+                
+                • **Clean Architecture & Separation of Concerns**: Keep Data, Domain, and Presentation layers strictly decoupled.
+                • **Kotlin State Management**: In modern Compose, expose immutable `StateFlow` from your ViewModel, and collect via `collectAsState()`. Never mutate state directly in Composables.
+                • **Async Operations**: Confine network/disk calls to `Dispatchers.IO`, and update UI states on `Dispatchers.Main`. Wrap unpredictable external calls in `runCatching` or sealed `Result` classes.
+                • **Debugging Heuristic**: When facing an unexpected bug, reproduce the minimal failing test case. Inspect inputs, boundary conditions (null/empty/0), and thread concurrency.
+                
+                💡 You can configure your Gemini API key in Settings -> AI to enable live real-time code generation and automated debugging!
+            """.trimIndent()
+        }
+
+        // 8. Bioscience, Neuroscience & STEM Science Skills
+        if ("bio" in q || "biology" in q || "neuro" in q || "dopamine" in q || "brain" in q || "cell" in q || "genetic" in q || "dna" in q || "science" in q || "ultradian" in q || "circadian" in q || "synap" in q) {
+            return """
+                🧬 **Luma Bioscience & Neuroscience Intelligence:**
+                
+                • **Dopamine & Prefrontal Executive Function**:
+                  Dopamine tonic levels dictate sustained motivation, while phasic bursts signal reward prediction errors. When working on difficult tasks, dopamine drops quickly. Intermittent random rewards (like checking off micro-steps) keep dopamine receptors sensitive and prevent cognitive fatigue.
+                
+                • **Ultradian 90-Minute Focus Cycles (BRAC)**:
+                  Human biology operates on 90–120 minute Basic Rest-Activity Cycles. The brain transitions from high-frequency beta/gamma waves to slower alpha/theta rhythms. Forcing focus past 90 minutes without a 15–20 minute restorative downtime causes adenosine accumulation and exponential error rates.
+                
+                • **Cellular Bioenergetics & Neural ATP**:
+                  The human brain represents ~2% of body mass but consumes ~20% of resting glucose and ATP. Astrocytes supply lactate to neurons during intense deep work. Hydration and stable blood glucose directly prevent the prefrontal cortex "executive crash".
+                
+                • **Synaptic Plasticity & Spaced Consolidation**:
+                  Long-term potentiation (LTP) requires protein synthesis occurring primarily during slow-wave non-REM and REM sleep. Learning today is physically wired into dendritic spines during tonight's rest. Never sacrifice sleep for study volume.
+                
+                💡 Need a bioscience study roadmap or exam prep breakdown? Use the "Study Plan" or "Exam Prep" capsules above!
+            """.trimIndent()
+        }
+
+        // 9. Physics, Chemistry & Mathematics
+        if ("math" in q || "physics" in q || "formula" in q || "calculate" in q || "chemistry" in q || "equation" in q) {
+            return """
+                🔬 **Luma Analytical Science & Mathematical Reasoning:**
+                
+                • **First Principles Thinking**: Deconstruct the problem into fundamental, undeniable axioms before building upwards.
+                • **Dimensional Verification**: Always check physical dimensions and units (e.g., $query). Consistency across both sides of the equation is mandatory.
+                • **Active Derivation**: Instead of passive memorization of final formulas, practice re-deriving core equations from basic conservation laws (energy, momentum, mass).
+                
+                💡 If you want to solve an equation instantly, you can type arithmetic directly (e.g. `128 * 45` or `15% of 640` or `sqrt(144)`) and I'll calculate it on the fly!
+            """.trimIndent()
+        }
+
+        // 9. Tasks & Prioritization
+        if ("work on" in q || "task" in q || "todo" in q || "what should i" in q || "priority" in q) {
+            val tasks = repository.allActiveTasks.firstOrNull() ?: emptyList()
+            val pending = tasks.filter { !it.isCompleted }
+            return if (pending.isNotEmpty()) {
+                val top = pending.maxByOrNull { it.priority.level } ?: pending.first()
+                val otherCount = (pending.size - 1).coerceAtLeast(0)
                 """
-                💻 Luma Universal Engineering & Code Architecture:
+                🎯 **Next Highest-Impact Focus Target:**
                 
-                • Clean Architecture & Single Responsibility: Isolate data sources, domain models, and UI states.
-                • In Kotlin/Compose: Prefer StateFlow, Immutable data classes, and avoid side effects outside `LaunchedEffect`.
-                • Asynchronous Flow: Use coroutine builders with proper dispatchers (`Dispatchers.IO` for disk/network, `Dispatchers.Main` for UI state updates).
-                • Error Handling: Wrap external I/O operations in `runCatching` or typed Sealed Results (`Result.Success` / `Result.Failure`).
+                • **Primary Task**: "${top.title}"
+                • **Priority Level**: ${top.priority.displayName}
+                • **Remaining Backlog**: $otherCount other pending task(s)
                 
-                💡 Tip: To run real-time AI code generation and instant debugging, you can add your Gemini API key in Settings!
+                ⚡ Recommendation: Launch a 25-minute Pomodoro or 15-minute Gentle block. Put your phone in Do Not Disturb and knock this out first!
                 """.trimIndent()
-            }
-            "math" in q || "physics" in q || "formula" in q || "calculate" in q || "science" in q -> {
-                """
-                🔬 Luma Universal Science & Logic Framework:
-                
-                • Scientific First-Principles: Break the problem down into fundamental axioms and equations before synthesizing.
-                • Dimensional Analysis: Always verify units on both sides of any equality.
-                • Spaced Retrieval: Practice deriving equations from memory rather than memorizing formula tables.
-                
-                💡 Need a specific step-by-step mathematical proof or problem solved? Add your Gemini key in Settings for full interactive multi-step derivations!
-                """.trimIndent()
-            }
-            "study" in q || "exam" in q || "revision" in q || "test" in q || "syllabus" in q -> {
-                """
-                📚 Luma's Study & Exam Coach Strategy:
-                
-                1. 🎯 Break down the material: Group topics into "Must-Master" (60% weightage), "High-Yield" (30%), and "Edge Cases" (10%).
-                2. ⏱️ 25/5 Pomodoro Cycle: 25 minutes of active problem solving + 5 minutes screen-free eye rest.
-                3. 🧠 Active Recall > Re-reading: Close the notes and write down key concepts from memory.
-                4. 💡 Need a tailored plan? Use the "Study Plan" or "Exam Plan" button above for a complete countdown roadmap!
-                """.trimIndent()
-            }
-            "weekly" in q || "plan" in q || "week" in q -> {
-                val plans = repository.allWeeklyPlans.firstOrNull() ?: emptyList()
-                val done = plans.count { it.isCompleted }
-                val total = plans.size
-                val rate = if (total > 0) (done.toFloat() / total * 100f).toInt() else 0
-                val status = if (rate >= 70) "🟢 On Track (>= 70%)" else "🔴 Action Needed (< 70%)"
-                "You have $total weekly goals planned, with $done completed ($rate% progress, $status). You have ${stats.weekSeconds / 60}m of focus logged this week!"
-            }
-            "productive" in q || "progress" in q -> {
-                "You have logged ${stats.weekSeconds / 60} minutes of deep focus this week with a ${stats.completionRate.toInt()}% completion rate. Your current focus streak is ${stats.currentStreak} day(s). You focus best around ${stats.bestHourOfDay}:00."
-            }
-            "work on" in q || "task" in q || "today" in q -> {
-                val tasks = repository.allActiveTasks.firstOrNull() ?: emptyList()
-                val pending = tasks.filter { !it.isCompleted }
-                if (pending.isNotEmpty()) {
-                    val top = pending.maxByOrNull { it.priority.level } ?: pending.first()
-                    "I recommend focusing on: '${top.title}'. It is marked as ${top.priority.displayName} priority. Let's start with a gentle 15-minute ADHD focus block."
-                } else {
-                    "Your task list is clear! Enjoy the calm or create a new small milestone for today."
-                }
-            }
-            "struggling" in q || "focus" in q || "distract" in q || "adhd" in q -> {
-                "When focus feels hard, the key is lowering the barrier to entry. Switch to ADHD Gentle Mode in the Focus tab, turn on 'Hide Timer', pick 'Deep Focus Waves' or 'Rain', and commit to just 5 minutes. You don't have to finish everything—just start."
-            }
-            "habit" in q || "streak" in q -> {
-                "Your focus streak is currently ${stats.currentStreak} days. Remember that consistency is about returning gently when interrupted, not perfection."
-            }
-            else -> {
-                "I am Luma, your universal AI companion with knowledge across coding, science, mathematics, history, literature, and study strategies, deeply integrated with your app storage! You have ${stats.todaySeconds / 60}m of focus recorded today and a ${stats.currentStreak}-day streak. Ask me anything—from debugging algorithms to building tailored study roadmaps!"
+            } else {
+                "🎉 Your task backlog is currently 100% clear! Take a restorative break or log a new creative goal in the Tasks tab."
             }
         }
+
+        // 10. Weekly Planning & Progression
+        if ("weekly" in q || "week" in q || "objective" in q) {
+            val plans = repository.allWeeklyPlans.firstOrNull() ?: emptyList()
+            val done = plans.count { it.isCompleted }
+            val total = plans.size
+            val rate = if (total > 0) (done.toFloat() / total * 100f).toInt() else 0
+            val status = if (rate >= 70) "🟢 On Track (>= 70%)" else "🟡 In Progress (< 70%)"
+            return """
+                📅 **Weekly Objectives Status:**
+                
+                • Progress: $done of $total goals completed ($rate%) - $status
+                • Focus Volume This Week: ${stats.weekSeconds / 60} minutes across ${stats.completedSessions} sessions
+                • Focus Streak: ${stats.currentStreak} day(s)
+                
+                Consistency beats intensity every single time. Keep chipping away!
+            """.trimIndent()
+        }
+
+        // 11. Habit Formation
+        if ("habit" in q || "streak" in q || "routine" in q) {
+            val habits = repository.activeHabits.firstOrNull() ?: emptyList()
+            val habitNames = habits.take(3).map { it.name }
+            return """
+                🔄 **Habit Engine Telemetry:**
+                
+                • Current Active Streak: ${stats.currentStreak} days
+                • Active Tracked Habits: ${if (habitNames.isNotEmpty()) habitNames.joinToString(", ") else "None configured yet"}
+                
+                💡 The Golden Rule of Habits: Never miss twice. If life interrupts your routine today, do a 2-minute micro-version to keep the identity alive!
+            """.trimIndent()
+        }
+
+        // 12. Explanations / "What is..." / "How to..."
+        val cleanedTopic = query.replace("what is", "", ignoreCase = true)
+            .replace("explain", "", ignoreCase = true)
+            .replace("tell me about", "", ignoreCase = true)
+            .replace("how does", "", ignoreCase = true)
+            .replace("how to", "", ignoreCase = true)
+            .trim()
+
+        return """
+            💡 **Luma Perspective on: "${query.take(50)}"**
+            
+            1. 🔍 **Core Concept & Overview**:
+            • At its foundation, ${if (cleanedTopic.isNotBlank()) cleanedTopic else "this topic"} represents an interconnected system governed by clear, predictable patterns.
+            • The primary lever is isolating the highest-leverage variable and focusing attention there first.
+            
+            2. ⚡ **Practical Action Plan**:
+            • **Step 1**: Define your exact objective in one clear sentence.
+            • **Step 2**: Remove secondary distractions and launch a focused 25-minute work block.
+            • **Step 3**: Review results and capture reflections in your Daily Journal.
+            
+            3. 📊 **Your Current Momentum**:
+            • You have ${stats.todaySeconds / 60}m of focused work logged today and a ${stats.currentStreak}-day streak active.
+            
+            ✨ Need a deeper, multimodal AI generation? Add your Gemini key in Settings for full unconstrained cloud synthesis!
+        """.trimIndent()
     }
 
     private fun generateOfflineStudyPlan(
@@ -641,5 +825,92 @@ class LumaAIService(private val repository: RacerRepository) {
         • 🧘 5-minute Box Breathing to regulate pre-test autonomic heart rate.
         • ⏱️ In Exam: First 5 mins scan paper, tackle easy questions first for momentum!
         """.trimIndent()
+    }
+
+    private fun evaluateMathQuery(raw: String): String? {
+        val trimmed = raw.trim()
+        val cleaned = trimmed
+            .replace("?", "")
+            .replace("=", "")
+            .replace("what is", "", ignoreCase = true)
+            .replace("calculate", "", ignoreCase = true)
+            .replace("solve", "", ignoreCase = true)
+            .trim()
+
+        // 1. Basic binary operations: A [+-*/^%x] B
+        val pattern = Regex("""^([+-]?\d+(?:\.\d+)?)\s*([\+\-\*\/\^%xX×÷])\s*([+-]?\d+(?:\.\d+)?)$""")
+        val match = pattern.find(cleaned)
+        if (match != null) {
+            val a = match.groupValues[1].toDoubleOrNull() ?: return null
+            val op = match.groupValues[2]
+            val b = match.groupValues[3].toDoubleOrNull() ?: return null
+
+            val result = when (op) {
+                "+" -> a + b
+                "-" -> a - b
+                "*", "x", "X", "×" -> a * b
+                "/", "÷" -> if (b != 0.0) a / b else Double.NaN
+                "%" -> a % b
+                "^" -> Math.pow(a, b)
+                else -> return null
+            }
+
+            fun formatNum(n: Double): String {
+                return if (n.isNaN()) "Undefined (division by zero)"
+                else if (n % 1.0 == 0.0) n.toLong().toString()
+                else String.format(Locale.US, "%.4f", n).trimEnd('0').trimEnd('.')
+            }
+
+            val opSymbol = when (op) {
+                "x", "X", "×" -> "×"
+                "÷" -> "÷"
+                else -> op
+            }
+
+            val opName = when (op) {
+                "+" -> "Addition"
+                "-" -> "Subtraction"
+                "*", "x", "X", "×" -> "Multiplication"
+                "/", "÷" -> "Division"
+                "%" -> "Modulo"
+                "^" -> "Exponentiation"
+                else -> "Calculation"
+            }
+
+            return """
+                🔢 **Mathematical Result:**
+                
+                **${formatNum(a)} $opSymbol ${formatNum(b)} = ${formatNum(result)}**
+                
+                *Step-by-step reasoning:*
+                • First term: ${formatNum(a)}
+                • Operation: $opSymbol ($opName)
+                • Second term: ${formatNum(b)}
+                • Final evaluated value: **${formatNum(result)}**
+            """.trimIndent()
+        }
+
+        // 2. Percentage questions (e.g. "15% of 200")
+        val pctPattern = Regex("""^(\d+(?:\.\d+)?)\s*%\s*(?:of)?\s*(\d+(?:\.\d+)?)$""", RegexOption.IGNORE_CASE)
+        val pctMatch = pctPattern.find(cleaned)
+        if (pctMatch != null) {
+            val p = pctMatch.groupValues[1].toDoubleOrNull() ?: return null
+            val total = pctMatch.groupValues[2].toDoubleOrNull() ?: return null
+            val res = (p / 100.0) * total
+            val formattedRes = if (res % 1.0 == 0.0) res.toLong().toString() else String.format(Locale.US, "%.4f", res).trimEnd('0').trimEnd('.')
+            return "🔢 **Result:** $p% of $total = **$formattedRes**"
+        }
+
+        // 3. Square root (e.g. "sqrt(144)" or "sqrt 144")
+        val sqrtPattern = Regex("""^sqrt\(?(\d+(?:\.\d+)?)\)?$""", RegexOption.IGNORE_CASE)
+        val sqrtMatch = sqrtPattern.find(cleaned)
+        if (sqrtMatch != null) {
+            val num = sqrtMatch.groupValues[1].toDoubleOrNull() ?: return null
+            val res = Math.sqrt(num)
+            val formattedRes = if (res % 1.0 == 0.0) res.toLong().toString() else String.format(Locale.US, "%.4f", res).trimEnd('0').trimEnd('.')
+            return "🔢 **Result:** √$num = **$formattedRes**"
+        }
+
+        return null
     }
 }

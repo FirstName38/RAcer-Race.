@@ -9,10 +9,11 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
-import com.example.data.db.AppDatabase
+import com.example.data.database.AppDatabase
+import com.example.data.entity.HabitCompletionEntity
+import com.example.data.entity.HabitEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,10 +33,10 @@ class HabitWidgetProvider : AppWidgetProvider() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val db = AppDatabase.getInstance(context)
-                val habits = db.habitDao().getActiveHabits().firstOrNull() ?: emptyList()
+                val db = AppDatabase.getDatabase(context)
+                val habits: List<HabitEntity> = db.habitDao().getActiveHabitsOnce()
                 val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val todayCompletions = db.habitDao().getCompletionsForDate(todayStr).firstOrNull() ?: emptyList()
+                val todayCompletions: List<HabitCompletionEntity> = db.habitDao().getCompletionsForDateOnce(todayStr)
 
                 val total = habits.size
                 val done = todayCompletions.count { it.isCompleted }

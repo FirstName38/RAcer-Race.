@@ -345,13 +345,13 @@ interface DailyRoutineDao {
 
 @Dao
 interface WeeklyPlanDao {
-    @Query("SELECT * FROM weekly_plans ORDER BY isCompleted ASC, id DESC")
+    @Query("SELECT * FROM weekly_plans ORDER BY isCompleted ASC, sortOrder ASC, id DESC")
     fun getAllWeeklyPlans(): Flow<List<WeeklyPlanEntity>>
 
-    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, id DESC")
+    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, sortOrder ASC, id DESC")
     fun getPlansForWeek(week: Int, year: Int): Flow<List<WeeklyPlanEntity>>
 
-    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, id DESC")
+    @Query("SELECT * FROM weekly_plans WHERE weekNumber = :week AND year = :year ORDER BY isCompleted ASC, sortOrder ASC, id DESC")
     suspend fun getPlansForWeekOnce(week: Int, year: Int): List<WeeklyPlanEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -372,5 +372,51 @@ interface WeeklyPlanDao {
     @Query("DELETE FROM weekly_plans")
     suspend fun deleteAllWeeklyPlans()
 }
+
+@Dao
+interface ManifestationDao {
+    @Query("SELECT * FROM manifestations WHERE isArchived = 0 ORDER BY sortOrder ASC, createdAt DESC")
+    fun getAllActiveManifestations(): Flow<List<com.example.data.entity.ManifestationEntity>>
+
+    @Query("SELECT * FROM manifestations ORDER BY sortOrder ASC, createdAt DESC")
+    fun getAllManifestations(): Flow<List<com.example.data.entity.ManifestationEntity>>
+
+    @Query("SELECT * FROM manifestations WHERE id = :id")
+    suspend fun getManifestationById(id: Long): com.example.data.entity.ManifestationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertManifestation(manifestation: com.example.data.entity.ManifestationEntity): Long
+
+    @Update
+    suspend fun updateManifestation(manifestation: com.example.data.entity.ManifestationEntity)
+
+    @Delete
+    suspend fun deleteManifestation(manifestation: com.example.data.entity.ManifestationEntity)
+
+    @Query("DELETE FROM manifestations WHERE id = :id")
+    suspend fun deleteManifestationById(id: Long)
+
+    @Query("DELETE FROM manifestations")
+    suspend fun deleteAllManifestations()
+}
+
+@Dao
+interface AppUsageLimitDao {
+    @Query("SELECT * FROM app_usage_limits")
+    fun getAllLimits(): Flow<List<com.example.data.entity.AppUsageLimitEntity>>
+
+    @Query("SELECT * FROM app_usage_limits")
+    suspend fun getAllLimitsOnce(): List<com.example.data.entity.AppUsageLimitEntity>
+
+    @Query("SELECT * FROM app_usage_limits WHERE packageName = :packageName")
+    suspend fun getLimitForPackage(packageName: String): com.example.data.entity.AppUsageLimitEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdateLimit(limit: com.example.data.entity.AppUsageLimitEntity)
+
+    @Query("DELETE FROM app_usage_limits WHERE packageName = :packageName")
+    suspend fun deleteLimit(packageName: String)
+}
+
 
 

@@ -49,6 +49,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -193,6 +195,7 @@ fun ClockScreen(
                         alarms = alarms.filter { !it.isBedtimeAlarm },
                         onToggleAlarm = { viewModel.toggleAlarm(it) },
                         onDeleteAlarm = { viewModel.deleteAlarm(it.id) },
+                        onUpdateAlarm = { viewModel.updateAlarm(it) },
                         onAddAlarmClick = { showAddAlarmSheet = true },
                         onQuickNap = { minutes ->
                             val cal = Calendar.getInstance().apply { add(Calendar.MINUTE, minutes) }
@@ -237,14 +240,19 @@ fun ClockScreen(
         if (showAddAlarmSheet) {
             AddAlarmBottomSheet(
                 onDismiss = { showAddAlarmSheet = false },
-                onSaveAlarm = { hour, min, label, daysMask, vibrate ->
+                onSaveAlarm = { hour, min, label, daysMask, vibrate, sound, volume, ringLength, snoozeMins, silenceMins ->
                     viewModel.addAlarm(
                         hour = hour,
                         minute = min,
                         label = label,
                         daysOfWeekMask = daysMask,
                         vibrate = vibrate,
-                        isBedtime = false
+                        isBedtime = false,
+                        soundName = sound,
+                        volume = volume,
+                        ringLengthSeconds = ringLength,
+                        snoozeMinutes = snoozeMins,
+                        silenceAfterMinutes = silenceMins
                     )
                     showAddAlarmSheet = false
                 }
@@ -261,6 +269,7 @@ fun AlarmsSection(
     alarms: List<AlarmEntity>,
     onToggleAlarm: (AlarmEntity) -> Unit,
     onDeleteAlarm: (AlarmEntity) -> Unit,
+    onUpdateAlarm: (AlarmEntity) -> Unit = {},
     onAddAlarmClick: () -> Unit,
     onQuickNap: (Int) -> Unit,
     onTestRing: () -> Unit,
@@ -420,7 +429,8 @@ fun AlarmsSection(
             AlarmCard(
                 alarm = alarm,
                 onToggle = { onToggleAlarm(alarm) },
-                onDelete = { onDeleteAlarm(alarm) }
+                onDelete = { onDeleteAlarm(alarm) },
+                onUpdate = { onUpdateAlarm(it) }
             )
         }
 
@@ -466,7 +476,8 @@ fun AlarmsSection(
 fun AlarmCard(
     alarm: AlarmEntity,
     onToggle: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onUpdate: (AlarmEntity) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -475,6 +486,7 @@ fun AlarmCard(
     val timeFormatted = String.format(Locale.getDefault(), "%02d:%02d", hour12, alarm.minute)
 
     val dayNames = listOf("M", "T", "W", "T", "F", "S", "S")
+    val soundOptions = listOf("Sunrise Melody", "Digital Beep", "Gentle Chime", "Cosmic Wake", "Radar Alert", "Zen Gong", "Birds & Forest", "Ocean Waves")
 
     GlassCard(
         modifier = Modifier
@@ -547,24 +559,172 @@ fun AlarmCard(
                 }
             }
 
-            // Expandable details (Vibration, Delete)
+            // Sound & Volume Pills row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = CharcoalCardElevated
+                ) {
+                    Text(
+                        text = "🎵 ${alarm.soundName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CyanAccent,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = CharcoalCardElevated
+                ) {
+                    Text(
+                        text = "Vol ${(alarm.volume * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = CharcoalCardElevated
+                ) {
+                    Text(
+                        text = "Snooze ${alarm.snoozeMinutes}m",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Expandable Detailed Alarm Settings
             AnimatedVisibility(visible = expanded) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Divider(color = CharcoalBorder.copy(alpha = 0.5f))
+
+                    // Alarm Sound Selector
+                    Text("Alarm Sound", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        soundOptions.forEach { sound ->
+                            val isSelected = alarm.soundName == sound
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) VioletPrimary else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                modifier = Modifier.clickable { onUpdate(alarm.copy(soundName = sound)) }
+                            ) {
+                                Text(
+                                    text = sound,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) Color.White else TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Alarm Volume Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (alarm.vibrateEnabled) "Vibration ON" else "Vibration OFF",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
+                        Text("Alarm Volume", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("${(alarm.volume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = CyanAccent, fontWeight = FontWeight.Bold)
+                    }
+                    Slider(
+                        value = alarm.volume,
+                        onValueChange = { onUpdate(alarm.copy(volume = it)) },
+                        valueRange = 0.1f..1.0f,
+                        colors = SliderDefaults.colors(thumbColor = CyanAccent, activeTrackColor = VioletPrimary)
+                    )
+
+                    // Ring Duration & Snooze Time & Silence After
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Ring Length", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(30 to "30s", 60 to "1m", 120 to "2m", 300 to "5m", 600 to "10m").forEach { (secs, label) ->
+                                    val isSelected = alarm.ringLengthSeconds == secs
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isSelected) VioletPrimary else CharcoalCard,
+                                        modifier = Modifier.clickable { onUpdate(alarm.copy(ringLengthSeconds = secs)) }
+                                    ) {
+                                        Text(text = label, style = MaterialTheme.typography.labelSmall, color = if (isSelected) Color.White else TextMuted, modifier = Modifier.padding(4.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        Column {
+                            Text("Snooze Time", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(5, 10, 15, 20).forEach { mins ->
+                                    val isSelected = alarm.snoozeMinutes == mins
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isSelected) CyanAccent.copy(alpha = 0.3f) else CharcoalCard,
+                                        modifier = Modifier.clickable { onUpdate(alarm.copy(snoozeMinutes = mins)) }
+                                    ) {
+                                        Text(text = "${mins}m", style = MaterialTheme.typography.labelSmall, color = if (isSelected) CyanAccent else TextMuted, modifier = Modifier.padding(4.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Silence After
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Silence After", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(1 to "1m", 3 to "3m", 5 to "5m", 10 to "10m", 15 to "15m").forEach { (mins, label) ->
+                                val isSelected = alarm.silenceAfterMinutes == mins
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isSelected) VioletPrimary else CharcoalCard,
+                                    modifier = Modifier.clickable { onUpdate(alarm.copy(silenceAfterMinutes = mins)) }
+                                ) {
+                                    Text(text = label, style = MaterialTheme.typography.labelSmall, color = if (isSelected) Color.White else TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    // Vibrate & Delete Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Vibrate", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Switch(
+                                checked = alarm.vibrateEnabled,
+                                onCheckedChange = { onUpdate(alarm.copy(vibrateEnabled = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent)
+                            )
+                        }
 
                         IconButton(onClick = onDelete) {
                             Icon(
@@ -581,7 +741,7 @@ fun AlarmCard(
 }
 
 // -----------------------------------------------------------------------------
-// 2. BEDTIME & SLEEP RHYTHM SECTION (Google Clock Bedtime Mode)
+// 2. BEDTIME & SLEEP RHYTHM SECTION (Flexible Google Clock Bedtime Mode)
 // -----------------------------------------------------------------------------
 @Composable
 fun BedtimeSection(
@@ -593,11 +753,16 @@ fun BedtimeSection(
     var wakeHour by remember { mutableIntStateOf(6) } // 06:30 AM
     var wakeMinute by remember { mutableIntStateOf(30) }
 
-    var bedtimeReminderEnabled by remember { mutableStateOf(true) }
-    var sunriseAlarmEnabled by remember { mutableStateOf(true) }
+    var wakeAlarmEnabled by remember { mutableStateOf(bedtimeAlarms.any { it.isWakeUpAlarm }) }
+    var wakeAlarmSound by remember { mutableStateOf("Sunrise Melody") }
+    var bedtimeReminderEnabled by remember { mutableStateOf(bedtimeAlarms.any { it.isBedtimeAlarm }) }
+    var bedtimeLeadMinutes by remember { mutableIntStateOf(15) } // 15m before
+
     var isPlayingSleepSound by remember { mutableStateOf(false) }
     var selectedSleepSound by remember { mutableStateOf(FocusSound.RAIN) }
     var sleepTimerMinutes by remember { mutableIntStateOf(30) }
+
+    val soundOptions = listOf("Sunrise Melody", "Gentle Chime", "Cosmic Wake", "Birds & Forest", "Zen Gong")
 
     // Calculate total sleep duration
     val sleepDurationHours = remember(bedtimeHour, bedtimeMinute, wakeHour, wakeMinute) {
@@ -637,7 +802,7 @@ fun BedtimeSection(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Target: $sleepDurationHours of optimal sleep",
+                                text = "Target: $sleepDurationHours of flexible sleep",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = CyanAccent
                             )
@@ -653,12 +818,12 @@ fun BedtimeSection(
                         }
                     }
 
-                    // Bedtime vs Wake-Up Tiles
+                    // Flexible Bedtime & Wake-Up Adjusters
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Bedtime Tile
+                        // Bedtime Tile with Steppers
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = CharcoalCard,
@@ -666,25 +831,47 @@ fun BedtimeSection(
                             modifier = Modifier.weight(1f)
                         ) {
                             Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Bedtime, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Bedtime", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 }
-                                val formattedBed = formatTime12h(bedtimeHour, bedtimeMinute)
                                 Text(
-                                    text = formattedBed,
+                                    text = formatTime12h(bedtimeHour, bedtimeMinute),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            if (bedtimeMinute >= 15) bedtimeMinute -= 15
+                                            else { bedtimeMinute = 45; bedtimeHour = if (bedtimeHour == 0) 23 else bedtimeHour - 1 }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("-15m", fontSize = 11.sp, color = CyanAccent, fontWeight = FontWeight.Bold)
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (bedtimeMinute < 45) bedtimeMinute += 15
+                                            else { bedtimeMinute = 0; bedtimeHour = if (bedtimeHour == 23) 0 else bedtimeHour + 1 }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("+15m", fontSize = 11.sp, color = CyanAccent, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
 
-                        // Wake-up Tile
+                        // Wake-up Tile with Steppers
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = CharcoalCard,
@@ -692,21 +879,43 @@ fun BedtimeSection(
                             modifier = Modifier.weight(1f)
                         ) {
                             Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.WbSunny, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Wake Up", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 }
-                                val formattedWake = formatTime12h(wakeHour, wakeMinute)
                                 Text(
-                                    text = formattedWake,
+                                    text = formatTime12h(wakeHour, wakeMinute),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = TextPrimary
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            if (wakeMinute >= 15) wakeMinute -= 15
+                                            else { wakeMinute = 45; wakeHour = if (wakeHour == 0) 23 else wakeHour - 1 }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("-15m", fontSize = 11.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (wakeMinute < 45) wakeMinute += 15
+                                            else { wakeMinute = 0; wakeHour = if (wakeHour == 23) 0 else wakeHour + 1 }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Text("+15m", fontSize = 11.sp, color = AmberWarning, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -714,36 +923,104 @@ fun BedtimeSection(
             }
         }
 
-        // Bedtime Schedule & Wind Down Actions
+        // Wake-Up Alarm Section (User requested wake up alarm)
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = "Bedtime Routine & Wind Down",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    // Wind Down Notification Toggle
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Wind Down Reminder", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
-                            Text("Alert 15 mins before bedtime to unplug", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Alarm, contentDescription = null, tint = AmberWarning, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Wake-Up Alarm", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                            Text("Audible ring crescendo at ${formatTime12h(wakeHour, wakeMinute)}", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                        }
+                        Switch(
+                            checked = wakeAlarmEnabled,
+                            onCheckedChange = { isChecked ->
+                                wakeAlarmEnabled = isChecked
+                                if (isChecked) {
+                                    viewModel.addAlarm(
+                                        hour = wakeHour,
+                                        minute = wakeMinute,
+                                        label = "Sunrise Wake-Up",
+                                        soundName = wakeAlarmSound,
+                                        isBedtime = false,
+                                        isWakeUpAlarm = true
+                                    )
+                                }
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = AmberWarning)
+                        )
+                    }
+
+                    if (wakeAlarmEnabled) {
+                        Text("Wake Sound", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            soundOptions.forEach { sound ->
+                                val isSelected = wakeAlarmSound == sound
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) AmberWarning.copy(alpha = 0.25f) else CharcoalCard,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) AmberWarning else CharcoalBorder),
+                                    modifier = Modifier.clickable { wakeAlarmSound = sound }
+                                ) {
+                                    Text(
+                                        text = sound,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) AmberWarning else TextSecondary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bedtime Notification Reminder Section (User requested bedtime notification)
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Bedtime Notification", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                            Text("Wind-down alert before bedtime at ${formatTime12h(bedtimeHour, bedtimeMinute)}", style = MaterialTheme.typography.bodySmall, color = TextMuted)
                         }
                         Switch(
                             checked = bedtimeReminderEnabled,
-                            onCheckedChange = {
-                                bedtimeReminderEnabled = it
-                                if (it) {
+                            onCheckedChange = { isChecked ->
+                                bedtimeReminderEnabled = isChecked
+                                if (isChecked) {
+                                    val notifHour = if (bedtimeLeadMinutes > 0 && bedtimeMinute < bedtimeLeadMinutes) {
+                                        if (bedtimeHour == 0) 23 else bedtimeHour - 1
+                                    } else bedtimeHour
+                                    val notifMin = if (bedtimeLeadMinutes > 0) {
+                                        if (bedtimeMinute >= bedtimeLeadMinutes) bedtimeMinute - bedtimeLeadMinutes
+                                        else (bedtimeMinute + 60 - bedtimeLeadMinutes)
+                                    } else bedtimeMinute
+
                                     viewModel.addAlarm(
-                                        hour = if (bedtimeMinute >= 15) bedtimeHour else (bedtimeHour - 1).coerceAtLeast(0),
-                                        minute = if (bedtimeMinute >= 15) bedtimeMinute - 15 else (bedtimeMinute + 45),
-                                        label = "Bedtime Wind Down (15 min)",
+                                        hour = notifHour,
+                                        minute = notifMin,
+                                        label = "Bedtime Wind Down Reminder",
                                         isBedtime = true
                                     )
                                 }
@@ -752,21 +1029,25 @@ fun BedtimeSection(
                         )
                     }
 
-                    // Sunrise Wake-Up Glow Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Sunrise Wake-Up Effect", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
-                            Text("Gradual ambient sound & brightness crescendo", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                    if (bedtimeReminderEnabled) {
+                        Text("Notify Me", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("At bedtime" to 0, "15m before" to 15, "30m before" to 30).forEach { (label, mins) ->
+                                val isSelected = bedtimeLeadMinutes == mins
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) VioletPrimary else CharcoalCard,
+                                    modifier = Modifier.clickable { bedtimeLeadMinutes = mins }
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSelected) Color.White else TextMuted,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
                         }
-                        Switch(
-                            checked = sunriseAlarmEnabled,
-                            onCheckedChange = { sunriseAlarmEnabled = it },
-                            colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent, checkedTrackColor = VioletPrimary)
-                        )
                     }
                 }
             }
@@ -1352,7 +1633,7 @@ fun WorldClockSection() {
 @Composable
 fun AddAlarmBottomSheet(
     onDismiss: () -> Unit,
-    onSaveAlarm: (hour: Int, min: Int, label: String, daysMask: Int, vibrate: Boolean) -> Unit
+    onSaveAlarm: (hour: Int, min: Int, label: String, daysMask: Int, vibrate: Boolean, sound: String, volume: Float, ringLength: Int, snoozeMins: Int, silenceMins: Int) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -1363,6 +1644,13 @@ fun AddAlarmBottomSheet(
     var vibrate by remember { mutableStateOf(true) }
     var daysMask by remember { mutableIntStateOf(127) } // All days
 
+    var selectedSound by remember { mutableStateOf("Sunrise Melody") }
+    var volume by remember { mutableFloatStateOf(0.85f) }
+    var ringLengthSeconds by remember { mutableIntStateOf(60) }
+    var snoozeMinutes by remember { mutableIntStateOf(5) }
+    var silenceAfterMinutes by remember { mutableIntStateOf(10) }
+
+    val soundOptions = listOf("Sunrise Melody", "Digital Beep", "Gentle Chime", "Cosmic Wake", "Radar Alert", "Zen Gong", "Birds & Forest", "Ocean Waves")
     val dayNames = listOf("M", "T", "W", "T", "F", "S", "S")
 
     ModalBottomSheet(
@@ -1373,8 +1661,9 @@ fun AddAlarmBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
                 text = "Set New Alarm",
@@ -1493,6 +1782,106 @@ fun AddAlarmBottomSheet(
                 )
             )
 
+            // Sound Options (User requested extra alarm sounds)
+            Text("Alarm Sound", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                soundOptions.forEach { sound ->
+                    val isSelected = selectedSound == sound
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) VioletPrimary else CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                        modifier = Modifier.clickable { selectedSound = sound }
+                    ) {
+                        Text(
+                            text = sound,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) Color.White else TextSecondary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            // Volume Slider (User requested alarm volume)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Alarm Volume", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Text("${(volume * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = CyanAccent, fontWeight = FontWeight.Bold)
+            }
+            Slider(
+                value = volume,
+                onValueChange = { volume = it },
+                valueRange = 0.1f..1.0f,
+                colors = SliderDefaults.colors(thumbColor = CyanAccent, activeTrackColor = VioletPrimary)
+            )
+
+            // Ring Length, Snooze Time & Silence After
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Ring Length", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(30 to "30s", 60 to "1m", 120 to "2m", 300 to "5m", 600 to "10m").forEach { (secs, lbl) ->
+                            val isSelected = ringLengthSeconds == secs
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isSelected) VioletPrimary else CharcoalCard,
+                                modifier = Modifier.clickable { ringLengthSeconds = secs }
+                            ) {
+                                Text(lbl, style = MaterialTheme.typography.labelSmall, color = if (isSelected) Color.White else TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    Text("Snooze Time", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(5, 10, 15, 20).forEach { mins ->
+                            val isSelected = snoozeMinutes == mins
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isSelected) CyanAccent.copy(alpha = 0.3f) else CharcoalCard,
+                                modifier = Modifier.clickable { snoozeMinutes = mins }
+                            ) {
+                                Text("${mins}m", style = MaterialTheme.typography.labelSmall, color = if (isSelected) CyanAccent else TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Silence After
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Silence After", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(1 to "1m", 3 to "3m", 5 to "5m", 10 to "10m", 15 to "15m").forEach { (mins, lbl) ->
+                        val isSelected = silenceAfterMinutes == mins
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isSelected) VioletPrimary else CharcoalCard,
+                            modifier = Modifier.clickable { silenceAfterMinutes = mins }
+                        ) {
+                            Text(lbl, style = MaterialTheme.typography.labelSmall, color = if (isSelected) Color.White else TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                        }
+                    }
+                }
+            }
+
             // Repeat Days of Week
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Repeat on", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
@@ -1547,7 +1936,7 @@ fun AddAlarmBottomSheet(
                     } else {
                         if (hour == 12) 12 else hour + 12
                     }
-                    onSaveAlarm(final24Hour, minute, label, daysMask, vibrate)
+                    onSaveAlarm(final24Hour, minute, label, daysMask, vibrate, selectedSound, volume, ringLengthSeconds, snoozeMinutes, silenceAfterMinutes)
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp),

@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -31,6 +32,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.HourglassBottom
@@ -44,10 +47,12 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -116,8 +121,17 @@ fun TasksScreen(
     var isSpotlightMode by remember { mutableStateOf(false) }
     var showAddTaskSheet by remember { mutableStateOf(false) }
     var selectedTaskForDetail by remember { mutableStateOf<TaskEntity?>(null) }
+    var taskToEdit by remember { mutableStateOf<TaskEntity?>(null) }
+    var viewingWeekNumber by remember { mutableStateOf<Int?>(null) }
 
-    val categories = listOf("All", "Work", "Study", "Personal", "Creative", "Health", "Events")
+    val customTaskCategories by viewModel.customTaskCategories.collectAsState()
+    val allWeeklyPlans by viewModel.allWeeklyPlans.collectAsState()
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var newCategoryName by remember { mutableStateOf("") }
+
+    val categories = remember(customTaskCategories) {
+        listOf("All", "Work", "Study", "Personal", "Creative", "Health", "Events") + customTaskCategories
+    }
 
     val nowMillis = System.currentTimeMillis()
     val startOfToday = Calendar.getInstance().apply {
@@ -237,22 +251,57 @@ fun TasksScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     categories.forEach { cat ->
                         val isSelected = selectedCategory == cat
+                        val isCustom = cat in customTaskCategories
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = if (isSelected) CyanAccent.copy(alpha = 0.2f) else CharcoalCard,
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
                             modifier = Modifier.clickable { selectedCategory = cat }
                         ) {
-                            Text(
-                                text = cat,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) CyanAccent else TextSecondary,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = cat,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) CyanAccent else TextSecondary
+                                )
+                                if (isCustom) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Delete Category",
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(13.dp).clickable {
+                                            if (selectedCategory == cat) selectedCategory = "All"
+                                            viewModel.deleteCustomTaskCategory(cat)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Add Custom Category Chip
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = VioletPrimary.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, VioletPrimary.copy(alpha = 0.5f)),
+                        modifier = Modifier.clickable { showAddCategoryDialog = true }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Add Custom Category", tint = VioletPrimary, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Custom", style = MaterialTheme.typography.labelSmall, color = VioletPrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -361,7 +410,9 @@ fun TasksScreen(
                             )
                             onNavigateToFocus()
                         },
-                        onDelete = { viewModel.deleteTask(task.id) }
+                        onEdit = { taskToEdit = task },
+                        onDelete = { viewModel.deleteTask(task.id) },
+                        onWeekPlanClicked = { weekNum -> viewingWeekNumber = weekNum }
                     )
                 }
 
@@ -415,8 +466,9 @@ fun TasksScreen(
 
         if (showAddTaskSheet) {
             AddTaskBottomSheet(
+                availableCategories = categories,
                 onDismiss = { showAddTaskSheet = false },
-                onAddTask = { title, desc, priority, category, estMins, subtasksJson, dueDateMillis, dueTimeString, reminderEnabled, reminderLeadMins ->
+                onAddTask = { title, desc, priority, category, estMins, subtasksJson, dueDateMillis, dueTimeString, reminderEnabled, reminderLeadMins, reminderType, reminderSound, weeklyPlanWeekNumber ->
                     viewModel.addTask(
                         title = title,
                         description = desc,
@@ -427,7 +479,10 @@ fun TasksScreen(
                         reminderLeadMinutes = reminderLeadMins,
                         category = category,
                         estimatedMinutes = estMins,
-                        subtasksJson = subtasksJson
+                        subtasksJson = subtasksJson,
+                        reminderType = reminderType,
+                        reminderSound = reminderSound,
+                        weeklyPlanWeekNumber = weeklyPlanWeekNumber
                     )
                     showAddTaskSheet = false
                 },
@@ -436,9 +491,119 @@ fun TasksScreen(
                         val plan = viewModel.lumaService.generateCoachPlan(goal)
                         callback(plan)
                     }
+                }
+            )
+        }
+
+        if (taskToEdit != null) {
+            EditTaskBottomSheet(
+                task = taskToEdit!!,
+                availableCategories = categories,
+                onDismiss = { taskToEdit = null },
+                onSaveTask = { updated ->
+                    viewModel.updateTask(updated)
+                    taskToEdit = null
+                }
+            )
+        }
+
+        if (viewingWeekNumber != null) {
+            val weekNum = viewingWeekNumber!!
+            val plansForWeek = allWeeklyPlans.filter { it.weekNumber == weekNum }
+            AlertDialog(
+                onDismissRequest = { viewingWeekNumber = null },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = CyanAccent)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Week $weekNum Objectives & Plans", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
                 },
-                onTestReminder = {
-                    viewModel.testTaskReminder("Upcoming Event Notification Test")
+                text = {
+                    if (plansForWeek.isEmpty()) {
+                        Text("No objectives planned for Week $weekNum yet. Add one in Weekly Objectives navigation.", color = TextMuted)
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().height(260.dp).verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            plansForWeek.forEach { plan ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = CharcoalCardElevated,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = if (plan.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                            contentDescription = null,
+                                            tint = if (plan.isCompleted) EmeraldSuccess else CyanAccent,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(
+                                                text = plan.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = TextPrimary
+                                            )
+                                            if (plan.description.isNotBlank()) {
+                                                Text(
+                                                    text = plan.description,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = TextSecondary
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { viewingWeekNumber = null }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
+        if (showAddCategoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddCategoryDialog = false },
+                title = { Text("New Custom Task Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = newCategoryName,
+                        onValueChange = { newCategoryName = it },
+                        label = { Text("Category Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newCategoryName.isNotBlank()) {
+                                viewModel.addCustomTaskCategory(newCategoryName.trim())
+                                selectedCategory = newCategoryName.trim()
+                                newCategoryName = ""
+                                showAddCategoryDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Add")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showAddCategoryDialog = false }) {
+                        Text("Cancel")
+                    }
                 }
             )
         }
@@ -478,7 +643,9 @@ fun TaskCard(
     onCardClick: () -> Unit = {},
     onToggle: () -> Unit,
     onFocus: () -> Unit,
-    onDelete: () -> Unit
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit,
+    onWeekPlanClicked: (Int) -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
     val formattedDueDate = remember(task.dueDateMillis, task.dueTimeString) {
@@ -594,6 +761,19 @@ fun TaskCard(
                     }
                 }
 
+                // Task Editing Button
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Task",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = onDelete,
                     modifier = Modifier.size(32.dp)
@@ -607,7 +787,7 @@ fun TaskCard(
                 }
             }
 
-            // Chips Row: Date & Reminder Badge + Category + Priority + Duration
+            // Chips Row: Date & Reminder Badge + Category + Priority + Duration + Week Plan Link
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -640,6 +820,58 @@ fun TaskCard(
                                 fontWeight = FontWeight.Medium
                             )
                         }
+                    }
+                }
+
+                // Reminder Type & Sound Badge
+                if (task.reminderEnabled) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AmberWarning.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AmberWarning.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (task.reminderType == "ALARM") Icons.Default.Alarm else Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = AmberWarning,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            val rLabel = when (task.reminderType) {
+                                "ALARM" -> "Alarm"
+                                "BOTH" -> "Alarm & Notif"
+                                else -> "Notif"
+                            }
+                            val sLabel = if (task.reminderSound.isNotBlank() && task.reminderSound != "default") " · ${task.reminderSound}" else ""
+                            Text(
+                                text = "$rLabel$sLabel",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AmberWarning,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Belongs to Weekly Plan Badge (W43 Plan)
+                if (task.weeklyPlanWeekNumber != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = VioletPrimary.copy(alpha = 0.25f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, VioletPrimary),
+                        modifier = Modifier.clickable { onWeekPlanClicked(task.weeklyPlanWeekNumber) }
+                    ) {
+                        Text(
+                            text = "W${task.weeklyPlanWeekNumber} Plan 📋",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFFA78BFA),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
                     }
                 }
 
@@ -876,6 +1108,7 @@ fun TaskDetailCyclesSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTaskBottomSheet(
+    availableCategories: List<String>,
     onDismiss: () -> Unit,
     onAddTask: (
         title: String,
@@ -887,35 +1120,46 @@ fun AddTaskBottomSheet(
         dueDateMillis: Long?,
         dueTimeString: String?,
         reminderEnabled: Boolean,
-        reminderLeadMins: Int
+        reminderLeadMins: Int,
+        reminderType: String,
+        reminderSound: String,
+        weeklyPlanWeekNumber: Int?
     ) -> Unit,
-    onGenerateMicroSteps: (String, (String) -> Unit) -> Unit,
-    onTestReminder: () -> Unit
+    onGenerateMicroSteps: (String, (String) -> Unit) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf(TaskPriority.MEDIUM) }
-    var category by remember { mutableStateOf("Work") }
-    var estimatedMinutesStr by remember { mutableStateOf("") } // Optional: user enters if desired
+    var selectedCategory by remember { mutableStateOf(availableCategories.firstOrNull { it != "All" } ?: "Work") }
+    var estimatedMinutesStr by remember { mutableStateOf("") }
     var isGeneratingMicroSteps by remember { mutableStateOf(false) }
 
-    // Future Scheduling State
-    var isFutureScheduled by remember { mutableStateOf(false) }
+    // Date & Time Scheduling
+    var isScheduled by remember { mutableStateOf(false) }
     var isCustomExactDate by remember { mutableStateOf(false) }
     var scheduledDaysOffset by remember { mutableIntStateOf(0) } // 0: Today, 1: Tomorrow, 2: 2 days, 7: Next week
     
-    // Exact Date components
     val nowCal = remember { Calendar.getInstance() }
     var exactYear by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
-    var exactMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH) + 1) } // 1..12
+    var exactMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH) + 1) }
     var exactDay by remember { mutableIntStateOf(nowCal.get(Calendar.DAY_OF_MONTH)) }
-    var scheduledHour by remember { mutableIntStateOf(14) } // 2:00 PM
-    var scheduledMinute by remember { mutableIntStateOf(0) }
-    var reminderEnabled by remember { mutableStateOf(true) }
-    var reminderLeadMinutes by remember { mutableIntStateOf(15) } // 15 mins before
+    var hourStr by remember { mutableStateOf(String.format(Locale.getDefault(), "%02d", nowCal.get(Calendar.HOUR_OF_DAY))) }
+    var minStr by remember { mutableStateOf(String.format(Locale.getDefault(), "%02d", ((nowCal.get(Calendar.MINUTE) / 5) * 5 + 5) % 60)) }
 
-    val categories = listOf("Work", "Study", "Personal", "Creative", "Health", "Events", "Meeting")
+    // Reminder Settings
+    var reminderEnabled by remember { mutableStateOf(true) }
+    var reminderType by remember { mutableStateOf("BOTH") } // NOTIFICATION, ALARM, BOTH
+    var reminderSound by remember { mutableStateOf("Default Bell") }
+    var reminderLeadMinutes by remember { mutableIntStateOf(0) } // 0: At exact time
+
+    // Weekly Plan Link
+    var linkToWeeklyPlan by remember { mutableStateOf(false) }
+    val currentWeekNumber = remember { WeekCalculationHelper.calculateWeekInfo(nowCal.timeInMillis).weekNumber }
+    var selectedWeekNumber by remember { mutableIntStateOf(currentWeekNumber) }
+
+    val soundOptions = listOf("Default Bell", "Sunrise Melody", "Digital Chime", "Radar Alert", "Zen Gong")
+    val reminderTypeOptions = listOf("NOTIFICATION" to "🔔 Notification", "ALARM" to "⏰ Alarm", "BOTH" to "🔔+⏰ Both")
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -925,8 +1169,9 @@ fun AddTaskBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
                 text = "New Milestone, Task or Event",
@@ -939,7 +1184,7 @@ fun AddTaskBottomSheet(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Task or Event Title") },
-                placeholder = { Text("e.g. Design Presentation, Doctor Appt, Gym Session") },
+                placeholder = { Text("e.g. Design Presentation, Study Chapter 4") },
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = CyanAccent,
@@ -989,9 +1234,9 @@ fun AddTaskBottomSheet(
                 }
             }
 
-            // Scheduling & Notification Toggle Card with EXACT DATE & TIME
+            // Scheduling & Notification Card
             GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1001,25 +1246,25 @@ fun AddTaskBottomSheet(
                             Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = CyanAccent)
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
-                                Text("Schedule Exact Date & Reminder Alert", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                Text("Set exact calendar date & reminder", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                                Text("Schedule Date & Exact Time", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Custom date & seamless clock entry", style = MaterialTheme.typography.bodySmall, color = TextMuted)
                             }
                         }
                         Switch(
-                            checked = isFutureScheduled,
-                            onCheckedChange = { isFutureScheduled = it },
+                            checked = isScheduled,
+                            onCheckedChange = { isScheduled = it },
                             colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent, checkedTrackColor = VioletPrimary)
                         )
                     }
 
-                    if (isFutureScheduled) {
-                        // Quick Date Chips + Exact Custom Date Toggle
-                        Text("Select Date Mode", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    if (isScheduled) {
+                        // Date selector
+                        Text("Date", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val dateOptions = listOf("Today" to 0, "Tomorrow" to 1, "In 2 Days" to 2, "In 3 Days" to 3, "Next Week" to 7)
+                            val dateOptions = listOf("Today" to 0, "Tomorrow" to 1, "In 2 Days" to 2, "Next Week" to 7)
                             dateOptions.forEach { (label, offset) ->
                                 val isSelected = !isCustomExactDate && scheduledDaysOffset == offset
                                 Surface(
@@ -1040,7 +1285,6 @@ fun AddTaskBottomSheet(
                                 }
                             }
 
-                            // Custom Exact Date Chip
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = if (isCustomExactDate) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
@@ -1048,7 +1292,7 @@ fun AddTaskBottomSheet(
                                 modifier = Modifier.clickable { isCustomExactDate = true }
                             ) {
                                 Text(
-                                    text = "📅 Exact Date",
+                                    text = "📅 Custom Date",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isCustomExactDate) CyanAccent else TextSecondary,
@@ -1057,7 +1301,6 @@ fun AddTaskBottomSheet(
                             }
                         }
 
-                        // Exact Date Inputs (Year, Month, Day) when Custom Date is selected
                         if (isCustomExactDate) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1066,99 +1309,139 @@ fun AddTaskBottomSheet(
                                 OutlinedTextField(
                                     value = exactDay.toString(),
                                     onValueChange = { exactDay = (it.toIntOrNull() ?: 1).coerceIn(1, 31) },
-                                    label = { Text("Day (1-31)") },
+                                    label = { Text("Day") },
                                     modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+                                    singleLine = true
                                 )
                                 OutlinedTextField(
                                     value = exactMonth.toString(),
                                     onValueChange = { exactMonth = (it.toIntOrNull() ?: 1).coerceIn(1, 12) },
-                                    label = { Text("Month (1-12)") },
+                                    label = { Text("Month") },
                                     modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+                                    singleLine = true
                                 )
                                 OutlinedTextField(
                                     value = exactYear.toString(),
                                     onValueChange = { exactYear = it.toIntOrNull() ?: 2026 },
                                     label = { Text("Year") },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+                                    modifier = Modifier.weight(1.2f),
+                                    singleLine = true
                                 )
                             }
                         }
 
-                        // Time Selector Row with Exact Hour & Minute Inputs
-                        Text("Scheduled Time (Exact Clock Time)", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        // Exact Seamless Time Input (Hour & Min without forced presets)
+                        Text("Exact Clock Time", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedTextField(
-                                value = scheduledHour.toString(),
-                                onValueChange = { scheduledHour = (it.toIntOrNull() ?: 0).coerceIn(0, 23) },
+                                value = hourStr,
+                                onValueChange = { text ->
+                                    val filtered = text.filter { it.isDigit() }.take(2)
+                                    hourStr = filtered
+                                },
                                 label = { Text("Hour (0-23)") },
+                                placeholder = { Text("14") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
                             )
-                            Text(":", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                             OutlinedTextField(
-                                value = String.format(Locale.getDefault(), "%02d", scheduledMinute),
-                                onValueChange = { scheduledMinute = (it.toIntOrNull() ?: 0).coerceIn(0, 59) },
-                                label = { Text("Min (0-59)") },
+                                value = minStr,
+                                onValueChange = { text ->
+                                    val filtered = text.filter { it.isDigit() }.take(2)
+                                    minStr = filtered
+                                },
+                                label = { Text("Minute (0-59)") },
+                                placeholder = { Text("00") },
                                 modifier = Modifier.weight(1f),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
                             )
                         }
 
-                        // Quick Time Presets
-                        Row(
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val timeOptions = listOf(
-                                "9:00 AM" to (9 to 0),
-                                "12:00 PM" to (12 to 0),
-                                "2:30 PM" to (14 to 30),
-                                "5:00 PM" to (17 to 0),
-                                "8:00 PM" to (20 to 0),
-                                "10:30 PM" to (22 to 30)
-                            )
-                            timeOptions.forEach { (label, time) ->
-                                val isSelected = (scheduledHour == time.first && scheduledMinute == time.second)
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
-                                    modifier = Modifier.clickable {
-                                        scheduledHour = time.first
-                                        scheduledMinute = time.second
-                                    }
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isSelected) CyanAccent else TextSecondary,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
+                        Divider(color = CharcoalBorder.copy(alpha = 0.5f))
 
-                        // Reminder Lead Time
+                        // Reminder Options
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Reminder Alert Lead", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("At time" to 0, "15m before" to 15, "1h before" to 60).forEach { (lbl, mins) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = VioletPrimary)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Enable Reminder", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                            Switch(
+                                checked = reminderEnabled,
+                                onCheckedChange = { reminderEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = VioletPrimary)
+                            )
+                        }
+
+                        if (reminderEnabled) {
+                            // Reminder Type: Alarm, Notification, or Both
+                            Text("Alert Style", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                reminderTypeOptions.forEach { (typeKey, label) ->
+                                    val isSelected = reminderType == typeKey
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) VioletPrimary else CharcoalCard,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                        modifier = Modifier.weight(1f).clickable { reminderType = typeKey }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Reminder Sound
+                            Text("Sound", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                soundOptions.forEach { sound ->
+                                    val isSelected = reminderSound == sound
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                        modifier = Modifier.clickable { reminderSound = sound }
+                                    ) {
+                                        Text(
+                                            text = sound,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) CyanAccent else TextSecondary,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Lead time
+                            Text("Remind Me", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf("At exact time" to 0, "5m before" to 5, "15m before" to 15, "30m before" to 30, "1h before" to 60).forEach { (lbl, mins) ->
                                     val isSelected = reminderLeadMinutes == mins
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
@@ -1169,7 +1452,7 @@ fun AddTaskBottomSheet(
                                             text = lbl,
                                             style = MaterialTheme.typography.labelSmall,
                                             color = if (isSelected) Color.White else TextMuted,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                         )
                                     }
                                 }
@@ -1179,7 +1462,51 @@ fun AddTaskBottomSheet(
                 }
             }
 
+            // Belongs to Weekly Plan Section
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.DateRange, contentDescription = null, tint = AmberWarning)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Belongs to Weekly Plan", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Link this task to a specific week", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                            }
+                        }
+                        Switch(
+                            checked = linkToWeeklyPlan,
+                            onCheckedChange = { linkToWeeklyPlan = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = AmberWarning)
+                        )
+                    }
+
+                    if (linkToWeeklyPlan) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Week Number:", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            OutlinedTextField(
+                                value = selectedWeekNumber.toString(),
+                                onValueChange = { selectedWeekNumber = (it.toIntOrNull() ?: currentWeekNumber).coerceIn(1, 53) },
+                                label = { Text("Week (1-53)") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AmberWarning)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Priority Selector
+            Text("Priority", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1189,9 +1516,7 @@ fun AddTaskBottomSheet(
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (isSelected) getPriorityColor(prio) else CharcoalCard,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { priority = prio }
+                        modifier = Modifier.weight(1f).clickable { priority = prio }
                     ) {
                         Text(
                             text = prio.displayName,
@@ -1205,75 +1530,86 @@ fun AddTaskBottomSheet(
             }
 
             // Category & Duration
+            Text("Category", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category") },
-                    modifier = Modifier.weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CyanAccent,
-                        unfocusedBorderColor = CharcoalBorder
-                    )
-                )
-
-                OutlinedTextField(
-                    value = estimatedMinutesStr,
-                    onValueChange = { text -> estimatedMinutesStr = text.filter { it.isDigit() } },
-                    label = { Text("Est. Mins (Optional)") },
-                    placeholder = { Text("None") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = CyanAccent,
-                        unfocusedBorderColor = CharcoalBorder
-                    )
-                )
+                val cats = availableCategories.filter { it != "All" }
+                cats.forEach { cat ->
+                    val isSelected = selectedCategory == cat
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                        modifier = Modifier.clickable { selectedCategory = cat }
+                    ) {
+                        Text(
+                            text = cat,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) CyanAccent else TextSecondary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
             }
+
+            OutlinedTextField(
+                value = estimatedMinutesStr,
+                onValueChange = { text -> estimatedMinutesStr = text.filter { it.isDigit() } },
+                label = { Text("Est. Minutes (Optional)") },
+                placeholder = { Text("25") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+            )
 
             Button(
                 onClick = {
                     if (title.isNotBlank()) {
-                        val dueMillis = if (isFutureScheduled) {
+                        val finalHour = (hourStr.toIntOrNull() ?: 12).coerceIn(0, 23)
+                        val finalMin = (minStr.toIntOrNull() ?: 0).coerceIn(0, 59)
+
+                        val dueMillis = if (isScheduled) {
                             if (isCustomExactDate) {
                                 Calendar.getInstance().apply {
                                     set(Calendar.YEAR, exactYear)
                                     set(Calendar.MONTH, exactMonth - 1)
                                     set(Calendar.DAY_OF_MONTH, exactDay)
-                                    set(Calendar.HOUR_OF_DAY, scheduledHour)
-                                    set(Calendar.MINUTE, scheduledMinute)
+                                    set(Calendar.HOUR_OF_DAY, finalHour)
+                                    set(Calendar.MINUTE, finalMin)
                                     set(Calendar.SECOND, 0)
                                     set(Calendar.MILLISECOND, 0)
                                 }.timeInMillis
                             } else {
                                 Calendar.getInstance().apply {
                                     add(Calendar.DAY_OF_YEAR, scheduledDaysOffset)
-                                    set(Calendar.HOUR_OF_DAY, scheduledHour)
-                                    set(Calendar.MINUTE, scheduledMinute)
+                                    set(Calendar.HOUR_OF_DAY, finalHour)
+                                    set(Calendar.MINUTE, finalMin)
                                     set(Calendar.SECOND, 0)
                                     set(Calendar.MILLISECOND, 0)
                                 }.timeInMillis
                             }
                         } else null
 
-                        val dueTimeStr = if (isFutureScheduled) {
-                            String.format(Locale.getDefault(), "%02d:%02d", scheduledHour, scheduledMinute)
+                        val dueTimeStr = if (isScheduled) {
+                            String.format(Locale.getDefault(), "%02d:%02d", finalHour, finalMin)
                         } else null
 
                         onAddTask(
                             title,
                             description,
                             priority,
-                            category,
+                            selectedCategory,
                             estimatedMinutesStr.toIntOrNull() ?: 0,
                             "[]",
                             dueMillis,
                             dueTimeStr,
-                            isFutureScheduled && reminderEnabled,
-                            reminderLeadMinutes
+                            isScheduled && reminderEnabled,
+                            reminderLeadMinutes,
+                            reminderType,
+                            reminderSound,
+                            if (linkToWeeklyPlan) selectedWeekNumber else null
                         )
                     }
                 },
@@ -1282,10 +1618,344 @@ fun AddTaskBottomSheet(
                 colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary),
                 enabled = title.isNotBlank()
             ) {
-                Text(if (isFutureScheduled) "Schedule Future Task & Set Alert" else "Create Task", fontWeight = FontWeight.Bold)
+                Text(if (isScheduled) "Schedule Task & Set Alert" else "Create Task", fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTaskBottomSheet(
+    task: TaskEntity,
+    availableCategories: List<String>,
+    onDismiss: () -> Unit,
+    onSaveTask: (TaskEntity) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var title by remember { mutableStateOf(task.title) }
+    var description by remember { mutableStateOf(task.description) }
+    var priority by remember { mutableStateOf(task.priority) }
+    var selectedCategory by remember { mutableStateOf(task.category) }
+    var estimatedMinutesStr by remember { mutableStateOf(if (task.estimatedMinutes > 0) task.estimatedMinutes.toString() else "") }
+
+    var isScheduled by remember { mutableStateOf(task.dueDateMillis != null) }
+    val initialCal = remember {
+        Calendar.getInstance().apply {
+            if (task.dueDateMillis != null) timeInMillis = task.dueDateMillis
+        }
+    }
+    var exactYear by remember { mutableIntStateOf(initialCal.get(Calendar.YEAR)) }
+    var exactMonth by remember { mutableIntStateOf(initialCal.get(Calendar.MONTH) + 1) }
+    var exactDay by remember { mutableIntStateOf(initialCal.get(Calendar.DAY_OF_MONTH)) }
+    var hourStr by remember { mutableStateOf(String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.HOUR_OF_DAY))) }
+    var minStr by remember { mutableStateOf(String.format(Locale.getDefault(), "%02d", initialCal.get(Calendar.MINUTE))) }
+
+    var reminderEnabled by remember { mutableStateOf(task.reminderEnabled) }
+    var reminderType by remember { mutableStateOf(task.reminderType) }
+    var reminderSound by remember { mutableStateOf(task.reminderSound) }
+    var reminderLeadMinutes by remember { mutableIntStateOf(task.reminderLeadMinutes) }
+
+    var linkToWeeklyPlan by remember { mutableStateOf(task.weeklyPlanWeekNumber != null) }
+    var selectedWeekNumber by remember { mutableIntStateOf(task.weeklyPlanWeekNumber ?: 1) }
+
+    val soundOptions = listOf("Default Bell", "Sunrise Melody", "Digital Chime", "Radar Alert", "Zen Gong")
+    val reminderTypeOptions = listOf("NOTIFICATION" to "🔔 Notification", "ALARM" to "⏰ Alarm", "BOTH" to "🔔+⏰ Both")
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = CharcoalCardElevated
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Edit Task / Event",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+            )
+
+            OutlinedTextField(
+                value = description,
+                onValueChange = { description = it },
+                label = { Text("Notes / Micro-steps") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = CyanAccent, unfocusedBorderColor = CharcoalBorder)
+            )
+
+            // Scheduling
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Scheduled Date & Time", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Switch(
+                            checked = isScheduled,
+                            onCheckedChange = { isScheduled = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent)
+                        )
+                    }
+
+                    if (isScheduled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = exactDay.toString(),
+                                onValueChange = { exactDay = (it.toIntOrNull() ?: 1).coerceIn(1, 31) },
+                                label = { Text("Day") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = exactMonth.toString(),
+                                onValueChange = { exactMonth = (it.toIntOrNull() ?: 1).coerceIn(1, 12) },
+                                label = { Text("Month") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = exactYear.toString(),
+                                onValueChange = { exactYear = it.toIntOrNull() ?: 2026 },
+                                label = { Text("Year") },
+                                modifier = Modifier.weight(1.2f),
+                                singleLine = true
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = hourStr,
+                                onValueChange = { hourStr = it.filter { c -> c.isDigit() }.take(2) },
+                                label = { Text("Hour (0-23)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            Text(":", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            OutlinedTextField(
+                                value = minStr,
+                                onValueChange = { minStr = it.filter { c -> c.isDigit() }.take(2) },
+                                label = { Text("Min (0-59)") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+
+                        Divider(color = CharcoalBorder.copy(alpha = 0.5f))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Reminder Active", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Switch(
+                                checked = reminderEnabled,
+                                onCheckedChange = { reminderEnabled = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = VioletPrimary)
+                            )
+                        }
+
+                        if (reminderEnabled) {
+                            Text("Alert Style", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                reminderTypeOptions.forEach { (typeKey, label) ->
+                                    val isSelected = reminderType == typeKey
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) VioletPrimary else CharcoalCard,
+                                        modifier = Modifier.weight(1f).clickable { reminderType = typeKey }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text("Sound", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                soundOptions.forEach { sound ->
+                                    val isSelected = reminderSound == sound
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isSelected) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
+                                        modifier = Modifier.clickable { reminderSound = sound }
+                                    ) {
+                                        Text(
+                                            text = sound,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isSelected) CyanAccent else TextSecondary,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Weekly Plan Link
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Belongs to Weekly Plan", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Switch(
+                            checked = linkToWeeklyPlan,
+                            onCheckedChange = { linkToWeeklyPlan = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = AmberWarning)
+                        )
+                    }
+                    if (linkToWeeklyPlan) {
+                        OutlinedTextField(
+                            value = selectedWeekNumber.toString(),
+                            onValueChange = { selectedWeekNumber = (it.toIntOrNull() ?: 1).coerceIn(1, 53) },
+                            label = { Text("Week Number (1-53)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            // Priority
+            Text("Priority", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TaskPriority.values().forEach { prio ->
+                    val isSelected = priority == prio
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) getPriorityColor(prio) else CharcoalCard,
+                        modifier = Modifier.weight(1f).clickable { priority = prio }
+                    ) {
+                        Text(
+                            text = prio.displayName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) Color.White else TextSecondary,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // Category
+            Text("Category", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                availableCategories.filter { it != "All" }.forEach { cat ->
+                    val isSelected = selectedCategory == cat
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSelected) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
+                        modifier = Modifier.clickable { selectedCategory = cat }
+                    ) {
+                        Text(
+                            text = cat,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) CyanAccent else TextSecondary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = estimatedMinutesStr,
+                onValueChange = { text -> estimatedMinutesStr = text.filter { it.isDigit() } },
+                label = { Text("Est. Minutes (Optional)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Button(
+                onClick = {
+                    val finalHour = (hourStr.toIntOrNull() ?: 12).coerceIn(0, 23)
+                    val finalMin = (minStr.toIntOrNull() ?: 0).coerceIn(0, 59)
+                    val dueMillis = if (isScheduled) {
+                        Calendar.getInstance().apply {
+                            set(Calendar.YEAR, exactYear)
+                            set(Calendar.MONTH, exactMonth - 1)
+                            set(Calendar.DAY_OF_MONTH, exactDay)
+                            set(Calendar.HOUR_OF_DAY, finalHour)
+                            set(Calendar.MINUTE, finalMin)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                    } else null
+
+                    val dueTimeStr = if (isScheduled) {
+                        String.format(Locale.getDefault(), "%02d:%02d", finalHour, finalMin)
+                    } else null
+
+                    val updated = task.copy(
+                        title = title,
+                        description = description,
+                        priority = priority,
+                        category = selectedCategory,
+                        estimatedMinutes = estimatedMinutesStr.toIntOrNull() ?: 0,
+                        dueDateMillis = dueMillis,
+                        dueTimeString = dueTimeStr,
+                        reminderEnabled = isScheduled && reminderEnabled,
+                        reminderLeadMinutes = reminderLeadMinutes,
+                        reminderType = reminderType,
+                        reminderSound = reminderSound,
+                        weeklyPlanWeekNumber = if (linkToWeeklyPlan) selectedWeekNumber else null
+                    )
+                    onSaveTask(updated)
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary)
+            ) {
+                Text("Save Changes", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -1296,3 +1966,4 @@ private fun getPriorityColor(priority: TaskPriority): Color = when (priority) {
     TaskPriority.MEDIUM -> CyanAccent
     TaskPriority.LOW -> TextSecondary
 }
+

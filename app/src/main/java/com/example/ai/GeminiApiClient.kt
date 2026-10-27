@@ -15,7 +15,8 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 object GeminiApiClient {
-    private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+    private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+    private const val FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(60, TimeUnit.SECONDS)
@@ -61,22 +62,29 @@ object GeminiApiClient {
             contentsArr.put(contentObj)
             requestJson.put("contents", contentsArr)
 
-            val url = if (!endpointOverride.isNullOrBlank()) {
-                endpointOverride
-            } else {
-                "$BASE_URL?key=$key"
-            }
+            val primaryUrl = if (!endpointOverride.isNullOrBlank()) endpointOverride else "$BASE_URL?key=$key"
+            val fallbackUrl = if (!endpointOverride.isNullOrBlank()) endpointOverride else "$FALLBACK_URL?key=$key"
 
             val mediaType = "application/json; charset=utf-8".toMediaType()
             val requestBody = requestJson.toString().toRequestBody(mediaType)
 
-            val request = Request.Builder()
-                .url(url)
+            var request = Request.Builder()
+                .url(primaryUrl)
                 .post(requestBody)
                 .build()
 
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
+            var response = client.newCall(request).execute()
+            var responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful && endpointOverride.isNullOrBlank()) {
+                // Try fallback model
+                request = Request.Builder()
+                    .url(fallbackUrl)
+                    .post(requestJson.toString().toRequestBody(mediaType))
+                    .build()
+                response = client.newCall(request).execute()
+                responseBody = response.body?.string() ?: ""
+            }
 
             if (!response.isSuccessful) {
                 return@withContext Result.failure(

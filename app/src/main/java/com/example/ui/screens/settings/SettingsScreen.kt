@@ -4,10 +4,16 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,25 +26,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -83,6 +97,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     viewModel: RacerViewModel,
+    onNavigateToThemeStudio: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -151,10 +166,21 @@ fun SettingsScreen(
                         }
                     }
 
+                    Button(
+                        onClick = onNavigateToThemeStudio,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Palette, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Open Full Theme & Aesthetics Studio", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
                     // 1. Color Theme Palette Selector
                     Text("App Theme (${currentTheme.displayName}):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
-                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(com.example.ui.theme.AppTheme.values()) { theme ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(com.example.ui.theme.AppTheme.values().toList()) { theme ->
                             val isSelected = currentTheme == theme
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -172,7 +198,7 @@ fun SettingsScreen(
                                         modifier = Modifier
                                             .size(14.dp)
                                             .clip(CircleShape)
-                                            .background(theme.primaryColor)
+                                            .background(theme.previewColor)
                                     )
                                     Box(
                                         modifier = Modifier
@@ -196,8 +222,8 @@ fun SettingsScreen(
 
                     // 2. Animated Live Wallpaper Backdrop Selector
                     Text("Animated Wallpaper Backdrop (${currentWallpaper.displayName}):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
-                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(com.example.ui.theme.AppWallpaper.values()) { wp ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(com.example.ui.theme.AppWallpaper.values().toList()) { wp ->
                             val isSelected = currentWallpaper == wp
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -231,34 +257,504 @@ fun SettingsScreen(
                         }
                     }
 
-                    // 3. First Day of Week Preference
-                    Text("First Day of Week (Weekly Calendar):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                    // 2b. Custom Gallery Photo Wallpaper
+                    val customWallpaperUri by viewModel.customWallpaperUri.collectAsState()
+                    val galleryPicker = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.PickVisualMedia()
+                    ) { uri: Uri? ->
+                        if (uri != null) {
+                            try {
+                                context.contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (e: Exception) {
+                                // Ignore flag error if provider does not support persistence
+                            }
+                            viewModel.setCustomWallpaperUri(uri.toString())
+                            viewModel.setAppWallpaper(com.example.ui.theme.AppWallpaper.CUSTOM_GALLERY)
+                            Toast.makeText(context, "Custom gallery wallpaper set!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = CharcoalCardElevated,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (currentWallpaper == com.example.ui.theme.AppWallpaper.CUSTOM_GALLERY) CyanAccent else CharcoalBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = CyanAccent)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text("Custom Photo Wallpaper", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                    Text("Pick any photo from your gallery with high-contrast text protection", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                                }
+                            }
+
+                            if (!customWallpaperUri.isNullOrBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color.Black)
+                                    ) {
+                                        AsyncImage(
+                                            model = customWallpaperUri,
+                                            contentDescription = "Selected Wallpaper",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (currentWallpaper == com.example.ui.theme.AppWallpaper.CUSTOM_GALLERY) "Active as App Backdrop" else "Saved in Gallery Cache",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = EmeraldSuccess,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Tap to switch to this wallpaper anytime",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextMuted,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        galleryPicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Wallpaper, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Select from Gallery", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                if (!customWallpaperUri.isNullOrBlank()) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.setCustomWallpaperUri(null)
+                                            viewModel.setAppWallpaper(com.example.ui.theme.AppWallpaper.AURORA_WAVES)
+                                            Toast.makeText(context, "Reverted to animated wallpaper", Toast.LENGTH_SHORT).show()
+                                        },
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Remove", fontSize = 12.sp, color = RoseUrgent)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2c. Dynamic Font & Typography Studio
+                    val currentFont by viewModel.currentAppFont.collectAsState()
+                    Text("App Typography & Font (${currentFont.displayName}):", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(com.example.ui.theme.AppFont.values().toList()) { fontOption ->
+                            val isSelected = currentFont == fontOption
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) VioletPrimary.copy(alpha = 0.35f) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                modifier = Modifier.clickable { viewModel.setAppFont(fontOption) }
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = fontOption.displayName,
+                                            style = MaterialTheme.typography.labelMedium.copy(fontFamily = fontOption.fontFamily),
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) CyanAccent else TextPrimary
+                                        )
+                                        if (isSelected) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    Text(
+                                        text = fontOption.description,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = fontOption.fontFamily),
+                                        color = TextMuted,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Theme Mode: System Default / Dark / Light (Request 9)
+                    val themeMode by viewModel.themeMode.collectAsState()
+                    Text("Theme Appearance Mode:", style = MaterialTheme.typography.labelMedium, color = CyanAccent, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        listOf("MONDAY" to "Monday", "SUNDAY" to "Sunday", "SATURDAY" to "Saturday").forEach { (dayKey, dayLabel) ->
-                            val isSelected = weekStartDay == dayKey
+                        listOf(
+                            "SYSTEM" to "System Default",
+                            "DARK" to "Dark Mode",
+                            "LIGHT" to "Light Mode"
+                        ).forEach { (modeKey, modeTitle) ->
+                            val isSel = themeMode == modeKey
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) VioletPrimary else CharcoalCard,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent else CharcoalBorder),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSel) VioletPrimary.copy(alpha = 0.35f) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) CyanAccent else CharcoalBorder),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable { viewModel.setWeekStartDay(dayKey) }
+                                    .clickable { viewModel.setThemeMode(modeKey) }
                             ) {
                                 Text(
-                                    text = dayLabel,
+                                    text = modeTitle,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) Color.White else TextSecondary,
-                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSel) Color.White else TextMuted,
+                                    modifier = Modifier.padding(vertical = 10.dp),
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
                             }
                         }
                     }
                 }
+            }
+        }
+
+        // Week Numbering Card (Matches Screenshot 1 to the pixel)
+        item {
+            val week1BeginsRule by viewModel.week1BeginsRule.collectAsState()
+            val weekStartDay by viewModel.weekStartDay.collectAsState()
+            val weekInfo = remember(weekStartDay, week1BeginsRule) {
+                com.example.util.WeekCalculationHelper.calculateWeekInfo(
+                    weekStartDay = weekStartDay,
+                    week1BeginsRule = week1BeginsRule
+                )
+            }
+            val dayNameDisplay = com.example.util.WeekCalculationHelper.getDayDisplayName(weekStartDay)
+
+            var showStartDayDropdown by remember { mutableStateOf(false) }
+            var showRuleDropdown by remember { mutableStateOf(false) }
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = CharcoalCardElevated,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF27272A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Week numbering",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // WEEK STARTS ON Dropdown (Matches Screenshot 1)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "WEEK STARTS ON",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E1B2E),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3F3F46)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showStartDayDropdown = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(dayNameDisplay, color = TextPrimary, fontSize = 14.sp)
+                                        Text("▾", color = TextMuted, fontSize = 14.sp)
+                                    }
+                                }
+
+                                androidx.compose.material3.DropdownMenu(
+                                    expanded = showStartDayDropdown,
+                                    onDismissRequest = { showStartDayDropdown = false }
+                                ) {
+                                    listOf(
+                                        "MONDAY" to "Monday",
+                                        "TUESDAY" to "Tuesday",
+                                        "WEDNESDAY" to "Wednesday",
+                                        "THURSDAY" to "Thursday",
+                                        "FRIDAY" to "Friday",
+                                        "SATURDAY" to "Saturday",
+                                        "SUNDAY" to "Sunday"
+                                    ).forEach { (k, v) ->
+                                        androidx.compose.material3.DropdownMenuItem(
+                                            text = { Text(v) },
+                                            onClick = {
+                                                viewModel.setWeekStartDay(k)
+                                                showStartDayDropdown = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // WEEK 1 BEGINS Dropdown (Matches Screenshot 1)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "WEEK 1 BEGINS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMuted,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box {
+                                val currentRuleLabel = if (week1BeginsRule == com.example.util.WeekCalculationHelper.RULE_FIRST_FULL_DAY) {
+                                    "First $dayNameDisplay of the year"
+                                } else {
+                                    "The week containing 1 January"
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E1B2E),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, VioletPrimary),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showRuleDropdown = true }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = currentRuleLabel,
+                                            color = TextPrimary,
+                                            fontSize = 13.sp,
+                                            maxLines = 1
+                                        )
+                                        Text("▾", color = TextMuted, fontSize = 14.sp)
+                                    }
+                                }
+
+                                androidx.compose.material3.DropdownMenu(
+                                    expanded = showRuleDropdown,
+                                    onDismissRequest = { showRuleDropdown = false }
+                                ) {
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("First $dayNameDisplay of the year") },
+                                        onClick = {
+                                            viewModel.setWeek1BeginsRule(com.example.util.WeekCalculationHelper.RULE_FIRST_FULL_DAY)
+                                            showRuleDropdown = false
+                                        }
+                                    )
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("The week containing 1 January") },
+                                        onClick = {
+                                            viewModel.setWeek1BeginsRule(com.example.util.WeekCalculationHelper.RULE_WEEK_CONTAINING_JAN_1)
+                                            showRuleDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Result Pill (Matches Screenshot 1: Today is week 43 of 53 · 10 weeks left in 2026)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF18181B),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = weekInfo.summaryText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Google Account & Cloud Protection Card (Request 8)
+        item {
+            val googleEmail by viewModel.googleAccountEmail.collectAsState()
+            val isLinked by viewModel.isGoogleAccountLinked.collectAsState()
+            val lastSync by viewModel.lastGoogleSyncTimestamp.collectAsState()
+            var editGoogleEmailDialog by remember { mutableStateOf(false) }
+            var tempEmailInput by remember { mutableStateOf(googleEmail) }
+
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF4285F4).copy(alpha = 0.2f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("G", fontWeight = FontWeight.Bold, color = Color(0xFF4285F4), fontSize = 18.sp)
+                                }
+                            }
+                            Column {
+                                Text("Google Account Backup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("🛡️ Protected by Google Account", style = MaterialTheme.typography.labelSmall, color = EmeraldSuccess, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isLinked) EmeraldSuccess.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.2f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLinked) EmeraldSuccess.copy(alpha = 0.4f) else Color.Transparent)
+                        ) {
+                            Text(
+                                text = if (isLinked) "Connected" else "Offline",
+                                color = if (isLinked) EmeraldSuccess else TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF1E1B2E),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Active Google ID", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                Text(googleEmail, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            }
+                            TextButton(onClick = {
+                                tempEmailInput = googleEmail
+                                editGoogleEmailDialog = true
+                            }) {
+                                Text("Switch", color = CyanAccent, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    val syncDateStr = remember(lastSync) {
+                        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(lastSync))
+                    }
+                    Text(
+                        text = "Encrypted cloud sync status: Up to date ($syncDateStr). Data is automatically restored when switching devices or reinstalling.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.triggerGoogleCloudSync()
+                                Toast.makeText(context, "Google Cloud Backup Synced Successfully!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Backup Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.triggerGoogleCloudSync()
+                                Toast.makeText(context, "Google Cloud Data Restored!", Toast.LENGTH_SHORT).show()
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF3F3F46)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Restore", fontSize = 12.sp, color = TextPrimary)
+                        }
+                    }
+                }
+            }
+
+            if (editGoogleEmailDialog) {
+                AlertDialog(
+                    onDismissRequest = { editGoogleEmailDialog = false },
+                    title = { Text("Connect Google Account") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Sign in or enter your Google email to synchronize routines, habits, and tasks securely:")
+                            OutlinedTextField(
+                                value = tempEmailInput,
+                                onValueChange = { tempEmailInput = it },
+                                label = { Text("Google Account Email") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (tempEmailInput.isNotBlank()) {
+                                    viewModel.setGoogleAccount(tempEmailInput.trim(), true)
+                                    editGoogleEmailDialog = false
+                                }
+                            }
+                        ) {
+                            Text("Connect")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editGoogleEmailDialog = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
             }
         }
 

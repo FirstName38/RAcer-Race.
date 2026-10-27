@@ -44,9 +44,11 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -90,11 +92,16 @@ import androidx.compose.ui.unit.sp
 import com.example.data.entity.ChatMessageEntity
 import com.example.data.model.TaskPriority
 import com.example.ui.components.GlassCard
+import com.example.ui.theme.CharcoalBlack
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
 import com.example.ui.theme.CharcoalBorder
 import com.example.ui.theme.CharcoalCard
 import com.example.ui.theme.CharcoalCardElevated
 import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.PinkAccent
+import com.example.ui.theme.RoseUrgent
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -124,6 +131,7 @@ fun LumaAIScreen(
     var showStudyPlanDialog by remember { mutableStateOf(false) }
     var showExamPlanDialog by remember { mutableStateOf(false) }
     var showMentalHealthDialog by remember { mutableStateOf(false) }
+    var showApiKeyDialog by remember { mutableStateOf(false) }
     var quickTaskTitle by remember { mutableStateOf<String?>(null) }
 
     val listState = rememberLazyListState()
@@ -161,40 +169,80 @@ fun LumaAIScreen(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // 1. Upgraded Neural Intellect Header
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = CharcoalCardElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent.copy(alpha = 0.35f)),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(CyanAccent.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(22.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(CyanAccent.copy(alpha = 0.35f), VioletPrimary.copy(alpha = 0.15f))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(24.dp))
+                    }
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Luma Neural Intellect",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldSuccess)
+                            )
+                        }
+                        Text(
+                            text = "Universal reasoning, code, math, study roadmaps & telemetry",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "Luma Study & Focus Coach",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Personalized Study Plans, Exam Prep & ADHD Coaching",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+
+                IconButton(
+                    onClick = { showApiKeyDialog = true },
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CharcoalCard)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Key,
+                        contentDescription = "Configure API Key",
+                        tint = CyanAccent,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
         }
 
-        // Quick Planning Action Chips Row
+        // 2. Futuristic Action Spark Capsules
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -202,48 +250,50 @@ fun LumaAIScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ActionPill(
-                icon = Icons.Default.Psychology,
-                label = "🧠 ADHD & Mental Health",
-                accentColor = VioletPrimary,
-                onClick = { showMentalHealthDialog = true }
-            )
-            ActionPill(
                 icon = Icons.Default.School,
-                label = "📚 Study Plan",
+                label = "📚 4-Week Study Plan",
                 accentColor = CyanAccent,
                 onClick = { showStudyPlanDialog = true }
             )
             ActionPill(
                 icon = Icons.Default.CalendarMonth,
-                label = "🎯 Exam Plan",
+                label = "🎯 Exam Countdown",
                 accentColor = PinkAccent,
                 onClick = { showExamPlanDialog = true }
             )
             ActionPill(
-                icon = Icons.AutoMirrored.Filled.MenuBook,
-                label = "Active Recall Plan",
-                onClick = {
-                    userText = "Design an Active Recall & Spaced Repetition schedule for: "
-                }
-            )
-            ActionPill(
                 icon = Icons.Default.Psychology,
-                label = "ADHD Micro-Steps",
-                onClick = { userText = "Break down my study goal into 3 easy micro-steps: " }
-            )
-            ActionPill(
-                icon = Icons.Default.Timeline,
-                label = "Daily Review",
-                onClick = { viewModel.generateDailyRetrospective() }
+                label = "🌿 Overwhelm Reset",
+                accentColor = EmeraldSuccess,
+                onClick = { showMentalHealthDialog = true }
             )
             ActionPill(
                 icon = Icons.Default.AutoAwesome,
-                label = "Weekly Review",
-                onClick = { viewModel.generateWeeklyRetrospective() }
+                label = "⚡ Break Down Goal",
+                accentColor = VioletPrimary,
+                onClick = { userText = "Break down this intimidating goal into 3 gentle <10 min micro-steps: " }
+            )
+            ActionPill(
+                icon = Icons.AutoMirrored.Filled.MenuBook,
+                label = "💻 Code & Architecture",
+                accentColor = Color(0xFF38BDF8),
+                onClick = { userText = "Explain best-practice clean architecture and Kotlin state management for: " }
+            )
+            ActionPill(
+                icon = Icons.Default.Science,
+                label = "🧬 Bioscience & Neuroscience",
+                accentColor = Color(0xFF10B981),
+                onClick = { userText = "Explain the neuroscience of dopamine, ultradian focus rhythms, and cellular energy for: " }
+            )
+            ActionPill(
+                icon = Icons.Default.Timeline,
+                label = "📊 Daily Retrospective",
+                accentColor = Color(0xFFF59E0B),
+                onClick = { viewModel.generateDailyRetrospective() }
             )
         }
 
-        // Chat Message Stream
+        // 3. Chat Message Stream
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -253,54 +303,69 @@ fun LumaAIScreen(
         ) {
             if (messages.isEmpty()) {
                 item {
-                    GlassCard(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = CharcoalCardElevated,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.School, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(40.dp))
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(CyanAccent.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(32.dp))
+                            }
+
                             Text(
-                                text = "Hi! I'm Luma, your Study & Exam Coach.",
+                                text = "Welcome to Luma Universal Intellect",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+
                             Text(
-                                text = "I can build tailored study plans, exam countdown roadmaps, spaced repetition schedules, or deconstruct complex textbook chapters into easy focus blocks.",
+                                text = "Ask me anything—from solving math equations and debugging Kotlin code to crafting full multi-week exam plans and ADHD pacing roadmaps.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
-
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Button(
                                     onClick = { showStudyPlanDialog = true },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(Icons.Default.School, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Study Plan", fontSize = 12.sp)
+                                    Text("Study Plan", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
 
-                                OutlinedButton(
+                                Button(
                                     onClick = { showExamPlanDialog = true },
                                     modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PinkAccent),
-                                    border = BorderStroke(1.dp, PinkAccent.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary, contentColor = Color.White),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Exam Prep", fontSize = 12.sp)
+                                    Text("Exam Matrix", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -329,7 +394,8 @@ fun LumaAIScreen(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = CharcoalCardElevated
+                            color = CharcoalCardElevated,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent.copy(alpha = 0.4f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -340,8 +406,8 @@ fun LumaAIScreen(
                                     color = CyanAccent,
                                     strokeWidth = 2.dp
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Luma is formulating your plan...", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Luma neural engine is synthesizing...", style = MaterialTheme.typography.bodySmall, color = CyanAccent)
                             }
                         }
                     }
@@ -354,8 +420,9 @@ fun LumaAIScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(CharcoalCardElevated)
+                    .border(1.dp, CyanAccent.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -367,7 +434,7 @@ fun LumaAIScreen(
                         .clip(RoundedCornerShape(8.dp))
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Study note attached for OCR analysis", style = MaterialTheme.typography.bodySmall, color = TextSecondary, modifier = Modifier.weight(1f))
+                Text("Study note attached for multimodal extraction", style = MaterialTheme.typography.bodySmall, color = TextSecondary, modifier = Modifier.weight(1f))
                 IconButton(onClick = {
                     selectedImageUri = null
                     selectedBitmap = null
@@ -377,56 +444,62 @@ fun LumaAIScreen(
             }
         }
 
-        // Input Field Bar
-        Row(
+        // 4. Futuristic Input Dock Bar
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = CharcoalCardElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(bottom = 8.dp)
         ) {
-            IconButton(
-                onClick = { galleryLauncher.launch("image/*") }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AddPhotoAlternate,
-                    contentDescription = "Attach Notes",
-                    tint = if (selectedBitmap != null) CyanAccent else TextMuted
-                )
-            }
-
-            OutlinedTextField(
-                value = userText,
-                onValueChange = { userText = it },
-                placeholder = { Text("Ask Luma (e.g. study plan, exam prep)...", color = TextMuted, style = MaterialTheme.typography.bodyMedium) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = CyanAccent,
-                    unfocusedBorderColor = CharcoalBorder,
-                    focusedContainerColor = CharcoalCard,
-                    unfocusedContainerColor = CharcoalCard
-                ),
-                maxLines = 3
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            IconButton(
-                onClick = {
-                    if (userText.isNotBlank() || selectedBitmap != null) {
-                        val textToSend = if (userText.isNotBlank()) userText else "Analyze this study note and formulate a study plan"
-                        viewModel.askLuma(textToSend, selectedBitmap)
-                        userText = ""
-                        selectedImageUri = null
-                        selectedBitmap = null
-                    }
-                },
+            Row(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(VioletPrimary)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                IconButton(
+                    onClick = { galleryLauncher.launch("image/*") }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = "Attach Notes",
+                        tint = if (selectedBitmap != null) CyanAccent else TextMuted
+                    )
+                }
+
+                OutlinedTextField(
+                    value = userText,
+                    onValueChange = { userText = it },
+                    placeholder = { Text("Ask Luma anything (e.g. study plan, math, code)...", color = TextMuted, fontSize = 13.sp) },
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent
+                    ),
+                    maxLines = 3
+                )
+
+                IconButton(
+                    onClick = {
+                        if (userText.isNotBlank() || selectedBitmap != null) {
+                            val textToSend = if (userText.isNotBlank()) userText else "Analyze this study note and formulate a study plan"
+                            viewModel.askLuma(textToSend, selectedBitmap)
+                            userText = ""
+                            selectedImageUri = null
+                            selectedBitmap = null
+                        }
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(CyanAccent)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Black, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }
@@ -488,6 +561,13 @@ fun LumaAIScreen(
                 Toast.makeText(context, "Added '$title' to Tasks!", Toast.LENGTH_SHORT).show()
                 quickTaskTitle = null
             }
+        )
+    }
+
+    if (showApiKeyDialog) {
+        ConfigureApiKeyDialog(
+            viewModel = viewModel,
+            onDismiss = { showApiKeyDialog = false }
         )
     }
 }
@@ -1053,3 +1133,177 @@ fun MentalHealthAnalysisDialog(
         containerColor = CharcoalCardElevated
     )
 }
+
+@Composable
+fun ConfigureApiKeyDialog(
+    viewModel: RacerViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var openAiKey by remember { mutableStateOf("") }
+    var geminiKey by remember { mutableStateOf("") }
+    var selectedProvider by remember { mutableStateOf("AUTO") }
+    var isLoaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        openAiKey = viewModel.getOpenAiApiKey()
+        geminiKey = viewModel.getGeminiApiKey()
+        selectedProvider = viewModel.getAiProvider()
+        isLoaded = true
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Key,
+                    contentDescription = null,
+                    tint = CyanAccent,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Configure AI & API Keys",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = VioletPrimary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, VioletPrimary.copy(alpha = 0.35f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "💡 Universal Intelligence",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = CyanAccent,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Luma has full offline smarts (instant math, tasks & streaks). Connect your OpenAI GPT or Gemini key for boundless universal answers across code, science, writing, and custom study plans.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                Text(
+                    text = "AI Engine / Provider",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val providers = listOf(
+                        "AUTO" to "Auto Detect",
+                        "OPENAI" to "OpenAI GPT",
+                        "GEMINI" to "Gemini"
+                    )
+                    providers.forEach { (provKey, provLabel) ->
+                        val isSel = selectedProvider == provKey
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSel) CyanAccent.copy(alpha = 0.2f) else CharcoalCard,
+                            border = BorderStroke(1.dp, if (isSel) CyanAccent else CharcoalBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedProvider = provKey }
+                        ) {
+                            Text(
+                                text = provLabel,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSel) CyanAccent else TextMuted,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = openAiKey,
+                    onValueChange = { openAiKey = it },
+                    label = { Text("OpenAI API Key (sk-...)") },
+                    placeholder = { Text("sk-proj-...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+
+                OutlinedTextField(
+                    value = geminiKey,
+                    onValueChange = { geminiKey = it },
+                    label = { Text("Gemini API Key (AIza...)") },
+                    placeholder = { Text("AIzaSy...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    )
+                )
+
+                Text(
+                    text = "Keys are securely saved in your device's local database and never shared.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    viewModel.saveAiConfiguration(openAiKey, geminiKey, selectedProvider)
+                    Toast.makeText(context, "AI settings and API keys updated!", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent)
+            ) {
+                Text("Save Keys", color = CharcoalBlack, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (openAiKey.isNotBlank() || geminiKey.isNotBlank()) {
+                    TextButton(onClick = {
+                        openAiKey = ""
+                        geminiKey = ""
+                        viewModel.saveAiConfiguration("", "", "AUTO")
+                        Toast.makeText(context, "API keys cleared", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text("Clear", color = RoseUrgent)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Close", color = TextMuted)
+                }
+            }
+        },
+        containerColor = CharcoalCardElevated
+    )
+}
+

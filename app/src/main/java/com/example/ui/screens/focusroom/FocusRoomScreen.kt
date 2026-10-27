@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.example.ui.screens.focusroom
 
 import android.Manifest
@@ -13,6 +14,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,13 +34,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoorFront
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
+import com.example.data.repository.CustomStudyRoom
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -1205,15 +1212,11 @@ private fun MyPersonalFocusRoom(
 
 @Composable
 private fun JoinStudyRoomSimulation(viewModel: RacerViewModel) {
-    val virtualRooms = listOf(
-        VirtualRoom("Silent Library Hall", 4, "Deep Silent Reading & Study", listOf("Maya (Biology)", "Alex (Calculus)", "Ken (Economics)", "Sophie (History)")),
-        VirtualRoom("Late Night Code & Coffee", 3, "Programming & Problem Solving", listOf("Liam (Kotlin)", "Carlos (Algorithms)", "Emma (Data Structures)")),
-        VirtualRoom("Deep Focus & Writing Lounge", 2, "Writing & Deep Research", listOf("Chloe (Essay)", "David (Thesis)"))
-    )
+    val customRooms by viewModel.customStudyRooms.collectAsState()
+    var activeRoom by remember { mutableStateOf<CustomStudyRoom?>(null) }
+    var showCreateDialog by remember { mutableStateOf(false) }
 
-    var activeVirtualRoom by remember { mutableStateOf<VirtualRoom?>(null) }
-
-    if (activeVirtualRoom == null) {
+    if (activeRoom == null) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -1221,55 +1224,193 @@ private fun JoinStudyRoomSimulation(viewModel: RacerViewModel) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                Column {
-                    Text("Join Study Room", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Text("Study alongside virtual study partners with live count-up & Pomodoro cycles", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                }
-            }
-
-            item {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = CyanAccent.copy(alpha = 0.12f),
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Groups, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(22.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Accountability Mode: When you join a room, your timer immediately starts counting up and tracks your Pomodoro intervals until you leave.",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Custom Focus Rooms",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
+                        Text(
+                            text = "Create and manage your private rooms with creator-defined settings",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Create Room", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
 
-            items(virtualRooms) { room ->
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { activeVirtualRoom = room }
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (customRooms.isEmpty()) {
+                item {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp, horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(room.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Surface(shape = RoundedCornerShape(8.dp), color = EmeraldSuccess.copy(alpha = 0.2f)) {
-                                Text("${room.activeCount} Focusing", color = EmeraldSuccess, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                            Icon(
+                                imageVector = Icons.Default.MeetingRoom,
+                                contentDescription = null,
+                                tint = CyanAccent,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = "No Focus Rooms Yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Default demo rooms have been cleared. Tap '+ Create Room' to design your own room with custom purpose, cycle durations (0 to 480 mins), and partner accountability.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Button(
+                                onClick = { showCreateDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("+ Create Your First Room", color = CharcoalDark, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Text(room.topic, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            room.members.forEach { m ->
-                                Surface(shape = RoundedCornerShape(6.dp), color = CharcoalCardElevated) {
-                                    Text(m, style = MaterialTheme.typography.labelSmall, color = TextMuted, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+            } else {
+                items(customRooms, key = { it.id }) { room ->
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = room.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Host: ${room.creatorName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CyanAccent
+                                    )
                                 }
+                                IconButton(
+                                    onClick = { viewModel.deleteStudyRoom(room.id) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Room",
+                                        tint = RoseUrgent.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            if (room.purpose.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = CharcoalCardElevated,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "🎯 Purpose: ${room.purpose}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+
+                            // Special Settings Badges
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(shape = RoundedCornerShape(6.dp), color = VioletPrimary.copy(alpha = 0.25f)) {
+                                    Text(
+                                        text = "⏱ ${room.focusMinutes}m Focus",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = VioletPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Surface(shape = RoundedCornerShape(6.dp), color = EmeraldSuccess.copy(alpha = 0.2f)) {
+                                    Text(
+                                        text = "☕ ${room.breakMinutes}m Break",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = EmeraldSuccess,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Surface(shape = RoundedCornerShape(6.dp), color = CyanAccent.copy(alpha = 0.15f)) {
+                                    Text(
+                                        text = "⚡ ${room.mode}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = CyanAccent,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                                Surface(shape = RoundedCornerShape(6.dp), color = CharcoalCardElevated) {
+                                    Text(
+                                        text = "🎵 ${room.ambientSound}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            if (room.partnerNames.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Members:", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                                    room.partnerNames.forEach { p ->
+                                        Surface(shape = RoundedCornerShape(6.dp), color = CharcoalCardElevated) {
+                                            Text(
+                                                p,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = TextPrimary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = { activeRoom = room },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Enter Focus Room", color = CharcoalDark, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1277,11 +1418,69 @@ private fun JoinStudyRoomSimulation(viewModel: RacerViewModel) {
             }
         }
     } else {
-        val room = activeVirtualRoom!!
-        MyPersonalFocusRoom(
-            viewModel = viewModel,
-            roomName = room.name,
-            studyPartners = room.members
+        val room = activeRoom!!
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                color = CharcoalCardElevated,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { activeRoom = null }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Leave Room",
+                            tint = CyanAccent
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Exit Room",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = CyanAccent,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        text = room.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+            }
+
+            MyPersonalFocusRoom(
+                viewModel = viewModel,
+                roomName = room.name,
+                studyPartners = if (room.partnerNames.isNotEmpty()) room.partnerNames else listOf("Focus Partner (Active)", "Accountability Buddy")
+            )
+        }
+    }
+
+    if (showCreateDialog) {
+        CreateStudyRoomDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name, purpose, creator, focusMin, breakMin, sound, mode, partners ->
+                viewModel.createStudyRoom(
+                    name = name,
+                    purpose = purpose,
+                    creatorName = creator,
+                    focusMinutes = focusMin,
+                    breakMinutes = breakMin,
+                    ambientSound = sound,
+                    mode = mode,
+                    partnerNames = partners
+                )
+                showCreateDialog = false
+            }
         )
     }
 }
@@ -1356,9 +1555,269 @@ private fun FocusRoomHistoryView(viewModel: RacerViewModel) {
     }
 }
 
-private data class VirtualRoom(
-    val name: String,
-    val activeCount: Int,
-    val topic: String,
-    val members: List<String>
-)
+@Composable
+fun CreateStudyRoomDialog(
+    onDismiss: () -> Unit,
+    onCreate: (
+        name: String,
+        purpose: String,
+        creator: String,
+        focusMin: Int,
+        breakMin: Int,
+        sound: String,
+        mode: String,
+        partners: List<String>
+    ) -> Unit
+) {
+    var roomName by remember { mutableStateOf("") }
+    var creatorName by remember { mutableStateOf("You (Host)") }
+    var purpose by remember { mutableStateOf("") }
+    var selectedMode by remember { mutableStateOf("POMODORO") }
+    var focusMinutes by remember { mutableIntStateOf(25) }
+    var breakMinutes by remember { mutableIntStateOf(5) }
+    var selectedSound by remember { mutableStateOf("Gentle Rain") }
+    var partnersText by remember { mutableStateOf("") }
+
+    val sounds = listOf(
+        "Gentle Rain", "Deep Lo-Fi", "Brown Noise", "White Noise", "Forest Birds", "Ocean Waves", "Silent"
+    )
+    val modes = listOf(
+        "POMODORO" to "Pomodoro",
+        "STOPWATCH" to "Stopwatch",
+        "DEEP_WORK" to "Deep Work"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.DoorFront,
+                    contentDescription = null,
+                    tint = CyanAccent,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Create Custom Focus Room",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = roomName,
+                    onValueChange = { roomName = it },
+                    label = { Text("Room Name *") },
+                    placeholder = { Text("e.g. Calculus Grind, Late Night Deep Work") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder
+                    )
+                )
+
+                OutlinedTextField(
+                    value = purpose,
+                    onValueChange = { purpose = it },
+                    label = { Text("Room Purpose / Topic") },
+                    placeholder = { Text("What this room is dedicated to (e.g. Reviewing exam chapter 4)") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder
+                    )
+                )
+
+                OutlinedTextField(
+                    value = creatorName,
+                    onValueChange = { creatorName = it },
+                    label = { Text("Host / Creator Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder
+                    )
+                )
+
+                // Mode Selector
+                Text(
+                    text = "Room Focus Mode",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    modes.forEach { (mKey, mLabel) ->
+                        val isSel = selectedMode == mKey
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSel) CyanAccent.copy(alpha = 0.2f) else CharcoalCard,
+                            border = BorderStroke(1.dp, if (isSel) CyanAccent else CharcoalBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedMode = mKey }
+                        ) {
+                            Text(
+                                text = mLabel,
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSel) CyanAccent else TextMuted,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Focus Duration: 0 mins to 480 mins!
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Focus Duration:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = "${focusMinutes}m ${if (focusMinutes == 0) "(Open / Continuous)" else ""}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = VioletPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = focusMinutes.toFloat(),
+                        onValueChange = { focusMinutes = it.toInt() },
+                        valueRange = 0f..480f,
+                        steps = 95,
+                        colors = SliderDefaults.colors(
+                            thumbColor = VioletPrimary,
+                            activeTrackColor = VioletPrimary
+                        )
+                    )
+                }
+
+                // Break Duration: 0 mins to 60 mins
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Break Duration:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = "${breakMinutes}m",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = EmeraldSuccess,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = breakMinutes.toFloat(),
+                        onValueChange = { breakMinutes = it.toInt() },
+                        valueRange = 0f..60f,
+                        steps = 59,
+                        colors = SliderDefaults.colors(
+                            thumbColor = EmeraldSuccess,
+                            activeTrackColor = EmeraldSuccess
+                        )
+                    )
+                }
+
+                // Ambient Sound
+                Text(
+                    text = "Room Ambient Background",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    sounds.forEach { snd ->
+                        val isSel = selectedSound == snd
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSel) CyanAccent.copy(alpha = 0.25f) else CharcoalCard,
+                            border = BorderStroke(1.dp, if (isSel) CyanAccent else CharcoalBorder),
+                            modifier = Modifier.clickable { selectedSound = snd }
+                        ) {
+                            Text(
+                                text = snd,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSel) CyanAccent else TextPrimary
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = partnersText,
+                    onValueChange = { partnersText = it },
+                    label = { Text("Accountability Study Buddies (Optional)") },
+                    placeholder = { Text("e.g. Alex, Maya, Jordan (comma separated)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CyanAccent,
+                        unfocusedBorderColor = CharcoalBorder
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (roomName.isBlank()) return@Button
+                    val partnersList = partnersText
+                        .split(",")
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                    onCreate(
+                        roomName.trim(),
+                        purpose.trim(),
+                        creatorName.ifBlank { "You (Host)" }.trim(),
+                        focusMinutes,
+                        breakMinutes,
+                        selectedSound,
+                        selectedMode,
+                        partnersList
+                    )
+                },
+                enabled = roomName.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent)
+            ) {
+                Text("Create Room", color = CharcoalDark, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextMuted)
+            }
+        },
+        containerColor = CharcoalCardElevated
+    )
+}
+

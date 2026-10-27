@@ -62,6 +62,8 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     val allWellnessLogs = repository.allWellnessLogs.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val allDailyRoutines = repository.allDailyRoutines.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     val allWeeklyPlans = repository.allWeeklyPlans.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allManifestations = repository.allManifestations.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allAppUsageLimits = repository.allAppUsageLimits.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val alarmRingingState = com.example.audio.RealAlarmAudioPlayer.ringingState
 
@@ -70,6 +72,27 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _dailyUsageList = MutableStateFlow<List<AppUsageEntity>>(emptyList())
     val dailyUsageList: StateFlow<List<AppUsageEntity>> = _dailyUsageList.asStateFlow()
+
+    // Coins & Gamification
+    val coinBalance = MutableStateFlow(120)
+
+    // Week Calculation Rules
+    val weekStartDay = MutableStateFlow("WEDNESDAY") // Matches user screenshot default or preference
+    val week1BeginsRule = MutableStateFlow(com.example.util.WeekCalculationHelper.RULE_WEEK_CONTAINING_JAN_1)
+
+    // Theme Mode: SYSTEM, DARK, LIGHT
+    val themeMode = MutableStateFlow("DARK")
+
+    // Google Account & Protection
+    val googleAccountEmail = MutableStateFlow("whoiamfirstname@gmail.com")
+    val isGoogleAccountLinked = MutableStateFlow(true)
+    val lastGoogleSyncTimestamp = MutableStateFlow(System.currentTimeMillis())
+
+    // Linked Focus Elements
+    val linkedStudyRoomId = MutableStateFlow<String?>("none")
+    val linkedFocusTargetType = MutableStateFlow("NONE") // NONE, TASK, HABIT, CHALLENGE, WEEKLY_PLAN
+    val linkedFocusTargetId = MutableStateFlow<Long?>(null)
+    val linkedFocusTargetTitle = MutableStateFlow("")
 
     private val _isAILoading = MutableStateFlow(false)
     val isAILoading: StateFlow<Boolean> = _isAILoading.asStateFlow()
@@ -86,8 +109,13 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
 
     val currentAppTheme = MutableStateFlow(com.example.ui.theme.AppTheme.MIDNIGHT_OLED)
     val currentAppWallpaper = MutableStateFlow(com.example.ui.theme.AppWallpaper.AURORA_WAVES)
-    val weekStartDay = MutableStateFlow("MONDAY") // MONDAY, SUNDAY, SATURDAY
+    val currentAppFont = MutableStateFlow(com.example.ui.theme.AppFont.MODERN_SANS)
+    val customWallpaperUri = MutableStateFlow<String?>(null)
+    val customAccentColorHex = MutableStateFlow<String?>(null)
+    val customWallpaperScrimAlpha = MutableStateFlow(0.65f)
     val customHabitCategories = MutableStateFlow<List<String>>(emptyList())
+    val customTaskCategories = MutableStateFlow<List<String>>(emptyList())
+    val customWeeklyCategories = MutableStateFlow<List<String>>(emptyList())
 
     // Custom Pomodoro Preferences
     val customFocusMinutes = MutableStateFlow(25)
@@ -95,14 +123,65 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     val customLongBreakMinutes = MutableStateFlow(15)
     val customSessionsPerCycle = MutableStateFlow(4)
     val customLoopCycle = MutableStateFlow(true)
+    val customStudyRooms = MutableStateFlow<List<com.example.data.repository.CustomStudyRoom>>(emptyList())
 
     init {
         refreshStats()
         loadUsage()
         seedWellness()
-        seedDailyRoutines()
         loadVisualPreferences()
-        seedWeeklyPlans()
+        cleanUpDefaults()
+        loadStudyRooms()
+    }
+
+    private fun cleanUpDefaults() {
+        viewModelScope.launch {
+            repository.cleanUpDefaultRoutinesAndPlans()
+        }
+    }
+
+    fun loadStudyRooms() {
+        viewModelScope.launch {
+            customStudyRooms.value = repository.getCustomStudyRooms()
+        }
+    }
+
+    fun createStudyRoom(room: com.example.data.repository.CustomStudyRoom) {
+        viewModelScope.launch {
+            repository.saveCustomStudyRoom(room)
+            customStudyRooms.value = repository.getCustomStudyRooms()
+        }
+    }
+
+    fun createStudyRoom(
+        name: String,
+        purpose: String,
+        creatorName: String = "You (Host)",
+        focusMinutes: Int = 25,
+        breakMinutes: Int = 5,
+        ambientSound: String = "Gentle Rain",
+        mode: String = "POMODORO",
+        partnerNames: List<String> = emptyList()
+    ) {
+        createStudyRoom(
+            com.example.data.repository.CustomStudyRoom(
+                name = name,
+                purpose = purpose,
+                creatorName = creatorName,
+                focusMinutes = focusMinutes,
+                breakMinutes = breakMinutes,
+                ambientSound = ambientSound,
+                mode = mode,
+                partnerNames = partnerNames
+            )
+        )
+    }
+
+    fun deleteStudyRoom(id: String) {
+        viewModelScope.launch {
+            repository.deleteCustomStudyRoom(id)
+            customStudyRooms.value = repository.getCustomStudyRooms()
+        }
     }
 
     private fun loadVisualPreferences() {
@@ -115,19 +194,82 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
             currentAppWallpaper.value = com.example.ui.theme.AppWallpaper.entries.find { it.id == savedWallpaperId }
                 ?: com.example.ui.theme.AppWallpaper.AURORA_WAVES
 
-            val savedWeekStart = repository.getSetting("week_start_day", "MONDAY")
+            val savedFontId = repository.getSetting("app_font_id", com.example.ui.theme.AppFont.MODERN_SANS.id)
+            currentAppFont.value = com.example.ui.theme.AppFont.entries.find { it.id == savedFontId }
+                ?: com.example.ui.theme.AppFont.MODERN_SANS
+
+            val savedCustomUri = repository.getSetting("custom_wallpaper_uri", "")
+            customWallpaperUri.value = savedCustomUri.ifBlank { null }
+
+            val savedAccentHex = repository.getSetting("custom_accent_hex", "")
+            customAccentColorHex.value = savedAccentHex.ifBlank { null }
+
+            val savedScrim = repository.getSetting("custom_scrim_alpha", "0.65")
+            customWallpaperScrimAlpha.value = savedScrim.toFloatOrNull() ?: 0.65f
+
+            val savedWeekStart = repository.getSetting("week_start_day", "WEDNESDAY")
             weekStartDay.value = savedWeekStart
 
+            val savedWeek1Rule = repository.getSetting("week_1_begins_rule", com.example.util.WeekCalculationHelper.RULE_WEEK_CONTAINING_JAN_1)
+            week1BeginsRule.value = savedWeek1Rule
+
+            val savedThemeMode = repository.getSetting("app_theme_mode", "DARK")
+            themeMode.value = savedThemeMode
+
+            coinBalance.value = repository.getCoinBalance()
+            googleAccountEmail.value = repository.getGoogleUserEmail()
+            isGoogleAccountLinked.value = repository.isGoogleAccountLinked()
+            lastGoogleSyncTimestamp.value = repository.getLastGoogleSyncTimestamp()
+
             customHabitCategories.value = repository.getCustomHabitCategories()
+            customTaskCategories.value = repository.getCustomTaskCategories()
+            customWeeklyCategories.value = repository.getCustomWeeklyCategories()
         }
     }
 
-    private fun seedWeeklyPlans() {
+    fun setWeekStartDay(day: String) {
+        weekStartDay.value = day
         viewModelScope.launch {
-            val cal = Calendar.getInstance()
-            val year = cal.get(Calendar.YEAR)
-            val week = cal.get(Calendar.WEEK_OF_YEAR)
-            repository.seedDefaultWeeklyPlansIfEmpty(week, year)
+            repository.setSetting("week_start_day", day)
+        }
+    }
+
+    fun setWeek1BeginsRule(rule: String) {
+        week1BeginsRule.value = rule
+        viewModelScope.launch {
+            repository.setSetting("week_1_begins_rule", rule)
+        }
+    }
+
+    fun setThemeMode(mode: String) {
+        themeMode.value = mode
+        viewModelScope.launch {
+            repository.setSetting("app_theme_mode", mode)
+        }
+    }
+
+    fun awardCoins(amount: Int, reason: String = "") {
+        viewModelScope.launch {
+            val updated = repository.addCoins(amount)
+            coinBalance.value = updated
+        }
+    }
+
+    fun setGoogleAccount(email: String, linked: Boolean) {
+        googleAccountEmail.value = email
+        isGoogleAccountLinked.value = linked
+        viewModelScope.launch {
+            repository.setGoogleUserEmail(email)
+            repository.setGoogleAccountLinked(linked)
+            repository.recordGoogleSync()
+            lastGoogleSyncTimestamp.value = System.currentTimeMillis()
+        }
+    }
+
+    fun triggerGoogleCloudSync() {
+        viewModelScope.launch {
+            repository.recordGoogleSync()
+            lastGoogleSyncTimestamp.value = System.currentTimeMillis()
         }
     }
 
@@ -145,10 +287,39 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setAppFont(font: com.example.ui.theme.AppFont) {
+        currentAppFont.value = font
+        viewModelScope.launch {
+            repository.setSetting("app_font_id", font.id)
+        }
+    }
+
+    fun setCustomWallpaperUri(uri: String?) {
+        customWallpaperUri.value = uri
+        viewModelScope.launch {
+            repository.setSetting("custom_wallpaper_uri", uri ?: "")
+        }
+    }
+
+    fun setCustomAccentColor(hex: String?) {
+        customAccentColorHex.value = hex
+        viewModelScope.launch {
+            repository.setSetting("custom_accent_hex", hex ?: "")
+        }
+    }
+
+    fun setCustomWallpaperScrim(alpha: Float) {
+        customWallpaperScrimAlpha.value = alpha
+        viewModelScope.launch {
+            repository.setSetting("custom_scrim_alpha", alpha.toString())
+        }
+    }
+
     fun setWeekStartDay(day: String) {
         weekStartDay.value = day
         viewModelScope.launch {
             repository.setSetting("week_start_day", day)
+            repository.setSetting("app_week_start_day", day)
         }
     }
 
@@ -156,6 +327,44 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.addCustomHabitCategory(cat)
             customHabitCategories.value = repository.getCustomHabitCategories()
+        }
+    }
+
+    fun setLinkedStudyRoom(roomId: String?) {
+        linkedStudyRoomId.value = roomId
+    }
+
+    fun setLinkedFocusTarget(type: String, id: Long?, title: String) {
+        linkedFocusTargetType.value = type
+        linkedFocusTargetId.value = id
+        linkedFocusTargetTitle.value = title
+    }
+
+    fun addCustomTaskCategory(cat: String) {
+        viewModelScope.launch {
+            repository.addCustomTaskCategory(cat)
+            customTaskCategories.value = repository.getCustomTaskCategories()
+        }
+    }
+
+    fun deleteCustomTaskCategory(cat: String) {
+        viewModelScope.launch {
+            repository.deleteCustomTaskCategory(cat)
+            customTaskCategories.value = repository.getCustomTaskCategories()
+        }
+    }
+
+    fun addCustomWeeklyCategory(cat: String) {
+        viewModelScope.launch {
+            repository.addCustomWeeklyCategory(cat)
+            customWeeklyCategories.value = repository.getCustomWeeklyCategories()
+        }
+    }
+
+    fun deleteCustomWeeklyCategory(cat: String) {
+        viewModelScope.launch {
+            repository.deleteCustomWeeklyCategory(cat)
+            customWeeklyCategories.value = repository.getCustomWeeklyCategories()
         }
     }
 
@@ -248,6 +457,14 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         })
     }
 
+    fun takeBreak(minutes: Int = 5) {
+        val app = getApplication<Application>()
+        app.startService(Intent(app, FocusTimerService::class.java).apply {
+            action = FocusTimerService.ACTION_TAKE_BREAK
+            putExtra(FocusTimerService.EXTRA_BREAK_MINUTES, minutes)
+        })
+    }
+
     fun stopFocus() {
         val app = getApplication<Application>()
         app.startService(Intent(app, FocusTimerService::class.java).apply {
@@ -335,7 +552,10 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         reminderLeadMinutes: Int = 0,
         category: String = "General",
         estimatedMinutes: Int = 25,
-        subtasksJson: String = "[]"
+        subtasksJson: String = "[]",
+        reminderType: String = "NOTIFICATION",
+        reminderSound: String = "default",
+        weeklyPlanWeekNumber: Int? = null
     ) {
         viewModelScope.launch {
             val task = TaskEntity(
@@ -347,9 +567,13 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                 reminderEnabled = reminderEnabled,
                 category = category,
                 estimatedMinutes = estimatedMinutes,
-                subtasksJson = subtasksJson
+                subtasksJson = subtasksJson,
+                reminderType = reminderType,
+                reminderSound = reminderSound,
+                weeklyPlanWeekNumber = weeklyPlanWeekNumber
             )
             val id = repository.insertTask(task)
+            awardCoins(5, "Created Task")
             if (reminderEnabled && dueDateMillis != null) {
                 TaskScheduler.scheduleTaskReminder(
                     context = getApplication(),
@@ -399,6 +623,21 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateTask(task: TaskEntity) {
+        viewModelScope.launch {
+            repository.updateTask(task)
+            if (task.reminderEnabled && task.dueDateMillis != null) {
+                TaskScheduler.scheduleTaskReminder(
+                    context = getApplication(),
+                    task = task,
+                    reminderLeadMinutes = 0
+                )
+            } else {
+                TaskScheduler.cancelTaskReminder(getApplication(), task.id)
+            }
+        }
+    }
+
     // --- Habit & Challenge Actions ---
     fun addHabit(
         name: String,
@@ -410,7 +649,8 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         reminderContext: String = "",
         reminderEnabled: Boolean = false,
         reminderType: String = "NOTIFICATION",
-        reminderSound: String = "zen_bell"
+        reminderSound: String = "zen_bell",
+        iconName: String = "icon_leaf"
     ) {
         viewModelScope.launch {
             val id = repository.insertHabit(
@@ -418,6 +658,7 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     name = name,
                     description = description,
                     label = label,
+                    iconName = iconName,
                     frequency = frequency,
                     colorHex = colorHex,
                     reminderTimeString = reminderTimeString,
@@ -428,6 +669,7 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     reminderSound = reminderSound
                 )
             )
+            awardCoins(10, "Created new Habit")
             if (reminderEnabled && !reminderTimeString.isNullOrBlank()) {
                 AlarmScheduler.scheduleHabitReminder(
                     context = getApplication(),
@@ -450,7 +692,8 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         reminderContext: String = "",
         reminderEnabled: Boolean = false,
         reminderType: String = "NOTIFICATION",
-        reminderSound: String = "zen_bell"
+        reminderSound: String = "zen_bell",
+        iconName: String = "icon_leaf"
     ) {
         viewModelScope.launch {
             val id = repository.insertHabit(
@@ -458,6 +701,7 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     name = name,
                     description = description,
                     label = label,
+                    iconName = iconName,
                     colorHex = colorHex,
                     isChallenge = true,
                     challengeDays = challengeDays,
@@ -468,6 +712,7 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     reminderSound = reminderSound
                 )
             )
+            awardCoins(20, "Committed to Strict Challenge")
             if (reminderEnabled && !reminderTimeString.isNullOrBlank()) {
                 AlarmScheduler.scheduleHabitReminder(
                     context = getApplication(),
@@ -520,7 +765,12 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun previewAlarmSound(soundName: String) {
-        com.example.audio.RealAlarmAudioPlayer.previewSound(getApplication(), soundName)
+        val soundType = try {
+            com.example.audio.AlarmSoundType.valueOf(soundName.uppercase())
+        } catch (_: Exception) {
+            com.example.audio.AlarmSoundType.SUNRISE_MELODY
+        }
+        com.example.audio.RealAlarmAudioPlayer.previewSound(getApplication(), soundType)
     }
 
     fun toggleHabitToday(habitId: Long) {
@@ -694,7 +944,13 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         label: String = "Focus Alarm",
         daysOfWeekMask: Int = 127,
         vibrate: Boolean = true,
-        isBedtime: Boolean = false
+        isBedtime: Boolean = false,
+        soundName: String = "Sunrise Melody",
+        volume: Float = 0.8f,
+        ringLengthSeconds: Int = 60,
+        snoozeMinutes: Int = 5,
+        silenceAfterMinutes: Int = 10,
+        isWakeUpAlarm: Boolean = false
     ) {
         viewModelScope.launch {
             val id = repository.insertAlarm(
@@ -704,10 +960,35 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     label = label,
                     daysOfWeekMask = daysOfWeekMask,
                     vibrateEnabled = vibrate,
-                    isBedtimeAlarm = isBedtime
+                    isBedtimeAlarm = isBedtime,
+                    soundName = soundName,
+                    volume = volume,
+                    ringLengthSeconds = ringLengthSeconds,
+                    snoozeMinutes = snoozeMinutes,
+                    silenceAfterMinutes = silenceAfterMinutes,
+                    isWakeUpAlarm = isWakeUpAlarm
                 )
             )
             AlarmScheduler.scheduleAlarm(getApplication(), id, hour, minute, label, vibrate, isBedtime)
+        }
+    }
+
+    fun updateAlarm(alarm: AlarmEntity) {
+        viewModelScope.launch {
+            repository.updateAlarm(alarm)
+            if (alarm.isEnabled) {
+                AlarmScheduler.scheduleAlarm(
+                    getApplication(),
+                    alarm.id,
+                    alarm.hour,
+                    alarm.minute,
+                    alarm.label,
+                    alarm.vibrateEnabled,
+                    alarm.isBedtimeAlarm
+                )
+            } else {
+                AlarmScheduler.cancelAlarm(getApplication(), alarm.id)
+            }
         }
     }
 
@@ -815,6 +1096,24 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
     fun resetDailyRoutines() {
         viewModelScope.launch {
             repository.resetDailyRoutines()
+        }
+    }
+
+    fun updateDailyRoutine(routine: com.example.data.entity.DailyRoutineEntity) {
+        viewModelScope.launch {
+            repository.updateDailyRoutine(routine)
+        }
+    }
+
+    fun reorderDailyRoutine(id: Long, moveUp: Boolean) {
+        viewModelScope.launch {
+            repository.reorderDailyRoutine(id, moveUp)
+        }
+    }
+
+    fun reorderWeeklyPlan(id: Long, moveUp: Boolean) {
+        viewModelScope.launch {
+            repository.reorderWeeklyPlan(id, moveUp)
         }
     }
 
@@ -944,4 +1243,136 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
             repository.setAppBlocked(pkg, blocked)
         }
     }
+
+    suspend fun getOpenAiApiKey(): String = repository.getSetting("openai_api_key", "")
+    suspend fun getGeminiApiKey(): String = repository.getSetting("gemini_api_key", "")
+    suspend fun getAiProvider(): String = repository.getSetting("ai_provider", "AUTO")
+
+    fun saveAiConfiguration(openAiKey: String, geminiKey: String, provider: String) {
+        viewModelScope.launch {
+            repository.setSetting("openai_api_key", openAiKey.trim())
+            repository.setSetting("gemini_api_key", geminiKey.trim())
+            repository.setSetting("ai_provider", provider.trim())
+            if (openAiKey.isNotBlank()) {
+                repository.setSetting("ai_api_key", openAiKey.trim())
+            } else if (geminiKey.isNotBlank()) {
+                repository.setSetting("ai_api_key", geminiKey.trim())
+            }
+        }
+    }
+
+    // --- Manifestations ---
+    fun addManifestation(
+        title: String,
+        description: String = "",
+        imageUri: String? = null,
+        priority: String = "HIGH",
+        reminderEnabled: Boolean = false,
+        reminderTimeString: String? = "08:00"
+    ) {
+        viewModelScope.launch {
+            repository.insertManifestation(
+                com.example.data.entity.ManifestationEntity(
+                    title = title,
+                    description = description,
+                    imageUri = imageUri,
+                    priority = priority,
+                    reminderEnabled = reminderEnabled,
+                    reminderTimeString = reminderTimeString,
+                    sortOrder = (allManifestations.value.size)
+                )
+            )
+            awardCoins(15, "Created new Manifestation")
+        }
+    }
+
+    fun updateManifestation(manifestation: com.example.data.entity.ManifestationEntity) {
+        viewModelScope.launch {
+            repository.updateManifestation(manifestation)
+        }
+    }
+
+    fun deleteManifestation(id: Long) {
+        viewModelScope.launch {
+            repository.deleteManifestation(id)
+        }
+    }
+
+    fun reorderManifestation(item: com.example.data.entity.ManifestationEntity, moveUp: Boolean) {
+        viewModelScope.launch {
+            val list = allManifestations.value.toMutableList()
+            val index = list.indexOfFirst { it.id == item.id }
+            if (index != -1) {
+                val targetIndex = if (moveUp) index - 1 else index + 1
+                if (targetIndex in 0 until list.size) {
+                    val other = list[targetIndex]
+                    repository.updateManifestation(item.copy(sortOrder = targetIndex))
+                    repository.updateManifestation(other.copy(sortOrder = index))
+                }
+            }
+        }
+    }
+
+    // --- App Usage Limits ---
+    fun saveAppLimit(limit: com.example.data.entity.AppUsageLimitEntity) {
+        viewModelScope.launch {
+            repository.saveAppUsageLimit(limit)
+        }
+    }
+
+    fun deleteAppLimit(packageName: String) {
+        viewModelScope.launch {
+            repository.deleteAppUsageLimit(packageName)
+        }
+    }
+
+    // Linked Focus Completion
+    fun completeLinkedFocusTarget() {
+        viewModelScope.launch {
+            val targetType = linkedFocusTargetType.value
+            val targetId = linkedFocusTargetId.value
+            if (targetId != null) {
+                when (targetType) {
+                    "TASK" -> {
+                        val task = repository.getTaskById(targetId)
+                        if (task != null) {
+                            repository.updateTask(task.copy(isCompleted = true, completedAt = System.currentTimeMillis()))
+                            awardCoins(15, "Completed linked Task in Focus Session")
+                        }
+                    }
+                    "HABIT" -> {
+                        val todayStr = repository.getTodayDateString()
+                        repository.insertCompletion(
+                            com.example.data.entity.HabitCompletionEntity(
+                                habitId = targetId,
+                                dateString = todayStr,
+                                isCompleted = true,
+                                perfectionScore = 100,
+                                note = "Completed via linked Focus Session"
+                            )
+                        )
+                        awardCoins(15, "Completed linked Habit in Focus Session")
+                    }
+                    "CHALLENGE" -> {
+                        val todayStr = repository.getTodayDateString()
+                        repository.insertCompletion(
+                            com.example.data.entity.HabitCompletionEntity(
+                                habitId = targetId,
+                                dateString = todayStr,
+                                isCompleted = true,
+                                perfectionScore = 100,
+                                note = "Conquered linked Challenge day via Focus Session"
+                            )
+                        )
+                        awardCoins(25, "Conquered linked Challenge in Focus Session")
+                    }
+                    "WEEKLY_PLAN" -> {
+                        repository.toggleWeeklyPlan(targetId, true)
+                        awardCoins(30, "Achieved linked Weekly Objective in Focus Session")
+                    }
+                }
+            }
+        }
+    }
 }
+

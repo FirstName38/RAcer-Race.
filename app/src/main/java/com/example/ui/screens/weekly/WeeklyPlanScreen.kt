@@ -116,6 +116,11 @@ fun WeeklyPlanScreen(
     val calendar = remember(weekStartDay, weekOffset) {
         val firstDay = when (weekStartDay.uppercase()) {
             "SUNDAY" -> Calendar.SUNDAY
+            "MONDAY" -> Calendar.MONDAY
+            "TUESDAY" -> Calendar.TUESDAY
+            "WEDNESDAY" -> Calendar.WEDNESDAY
+            "THURSDAY" -> Calendar.THURSDAY
+            "FRIDAY" -> Calendar.FRIDAY
             "SATURDAY" -> Calendar.SATURDAY
             else -> Calendar.MONDAY
         }
@@ -136,10 +141,19 @@ fun WeeklyPlanScreen(
         val calClone = calendar.clone() as Calendar
         val firstDay = when (weekStartDay.uppercase()) {
             "SUNDAY" -> Calendar.SUNDAY
+            "MONDAY" -> Calendar.MONDAY
+            "TUESDAY" -> Calendar.TUESDAY
+            "WEDNESDAY" -> Calendar.WEDNESDAY
+            "THURSDAY" -> Calendar.THURSDAY
+            "FRIDAY" -> Calendar.FRIDAY
             "SATURDAY" -> Calendar.SATURDAY
             else -> Calendar.MONDAY
         }
-        calClone.set(Calendar.DAY_OF_WEEK, firstDay)
+        calClone.firstDayOfWeek = firstDay
+        calClone.minimalDaysInFirstWeek = 4
+        while (calClone.get(Calendar.DAY_OF_WEEK) != firstDay) {
+            calClone.add(Calendar.DAY_OF_YEAR, -1)
+        }
         val todayCal = Calendar.getInstance()
         val dFormat = SimpleDateFormat("MMM d", Locale.getDefault())
         val codeFormat = SimpleDateFormat("EEE", Locale.US)
@@ -551,7 +565,15 @@ fun WeeklyPlanScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
-                        val days = listOf("MONDAY" to "Monday (ISO Standard)", "SUNDAY" to "Sunday (US & Traditional)", "SATURDAY" to "Saturday (Custom)")
+                        val days = listOf(
+                            "MONDAY" to "Monday (Standard)",
+                            "TUESDAY" to "Tuesday",
+                            "WEDNESDAY" to "Wednesday",
+                            "THURSDAY" to "Thursday",
+                            "FRIDAY" to "Friday",
+                            "SATURDAY" to "Saturday (Weekend Start)",
+                            "SUNDAY" to "Sunday (Traditional)"
+                        )
                         days.forEach { (code, label) ->
                             val isSelected = weekStartDay.equals(code, ignoreCase = true)
                             Surface(

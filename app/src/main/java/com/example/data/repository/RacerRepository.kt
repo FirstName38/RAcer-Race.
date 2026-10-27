@@ -47,6 +47,8 @@ class RacerRepository(private val context: Context) {
     private val wellnessDao = db.wellnessDao()
     private val dailyRoutineDao = db.dailyRoutineDao()
     private val weeklyPlanDao = db.weeklyPlanDao()
+    private val manifestationDao = db.manifestationDao()
+    private val appUsageLimitDao = db.appUsageLimitDao()
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
@@ -388,133 +390,40 @@ class RacerRepository(private val context: Context) {
     }
 
     suspend fun seedDefaultDailyRoutinesIfEmpty() = withContext(Dispatchers.IO) {
-        val existing = dailyRoutineDao.getAllRoutines().firstOrNull()
-        if (existing.isNullOrEmpty()) {
-            val defaults = listOf(
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Wake Up & 500ml Water",
-                    timeSlot = "MORNING",
-                    scheduledTime = "06:30",
-                    durationMinutes = 5,
-                    iconName = "wb_sunny",
-                    colorHex = "#F59E0B",
-                    cueNote = "Kickstart hydration and metabolic alert systems.",
-                    actionType = "NONE",
-                    sortOrder = 1
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Box Breathing 4-4-4-4 Practice",
-                    timeSlot = "MORNING",
-                    scheduledTime = "06:45",
-                    durationMinutes = 5,
-                    iconName = "air",
-                    colorHex = "#06B6D4",
-                    cueNote = "Calm autonomic nervous system with 4s inhale/hold/exhale.",
-                    actionType = "BREATHING",
-                    sortOrder = 2
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Sun Salutation & Flow",
-                    timeSlot = "MORNING",
-                    scheduledTime = "07:00",
-                    durationMinutes = 10,
-                    iconName = "self_improvement",
-                    colorHex = "#10B981",
-                    cueNote = "Awaken thoracic spine and loosen hip flexors.",
-                    actionType = "YOGA",
-                    sortOrder = 3
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Daily Focus Plan & Top 3 Tasks",
-                    timeSlot = "MORNING",
-                    scheduledTime = "07:30",
-                    durationMinutes = 15,
-                    iconName = "check_circle",
-                    colorHex = "#8B5CF6",
-                    cueNote = "Select the single highest leverage task before opening email.",
-                    actionType = "JOURNAL",
-                    sortOrder = 4
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Deep Work Focus Block #1",
-                    timeSlot = "DEEP_WORK",
-                    scheduledTime = "09:00",
-                    durationMinutes = 50,
-                    iconName = "timer",
-                    colorHex = "#EC4899",
-                    cueNote = "High cognitive effort. Phones on silent, zero interruption.",
-                    actionType = "FOCUS",
-                    sortOrder = 5
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Desk Neck & Spine Decompression",
-                    timeSlot = "MIDDAY",
-                    scheduledTime = "12:30",
-                    durationMinutes = 6,
-                    iconName = "accessibility_new",
-                    colorHex = "#06B6D4",
-                    cueNote = "Neutralize computer hunch and eye strain.",
-                    actionType = "STRETCH",
-                    sortOrder = 6
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Mindful Nutrient Lunch & Screen Break",
-                    timeSlot = "MIDDAY",
-                    scheduledTime = "13:00",
-                    durationMinutes = 45,
-                    iconName = "restaurant",
-                    colorHex = "#10B981",
-                    cueNote = "Eat away from your work monitor.",
-                    actionType = "NONE",
-                    sortOrder = 7
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Afternoon Execution Sprint #2",
-                    timeSlot = "AFTERNOON",
-                    scheduledTime = "14:30",
-                    durationMinutes = 45,
-                    iconName = "timer",
-                    colorHex = "#8B5CF6",
-                    cueNote = "Task clearance and administrative follow-through.",
-                    actionType = "FOCUS",
-                    sortOrder = 8
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Outdoor 20-Minute Brisk Walk",
-                    timeSlot = "AFTERNOON",
-                    scheduledTime = "17:30",
-                    durationMinutes = 20,
-                    iconName = "directions_walk",
-                    colorHex = "#F59E0B",
-                    cueNote = "Natural sunlight and optic flow reset.",
-                    actionType = "NONE",
-                    sortOrder = 9
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "Digital Detox & Evening Journal",
-                    timeSlot = "EVENING",
-                    scheduledTime = "21:00",
-                    durationMinutes = 15,
-                    iconName = "edit_note",
-                    colorHex = "#8B5CF6",
-                    cueNote = "Log 1 thing learned, 1 thing felt, and gratitude.",
-                    actionType = "JOURNAL",
-                    sortOrder = 10
-                ),
-                com.example.data.entity.DailyRoutineEntity(
-                    title = "4-7-8 Relaxation Breathing & Bedtime",
-                    timeSlot = "NIGHT",
-                    scheduledTime = "22:30",
-                    durationMinutes = 10,
-                    iconName = "bedtime",
-                    colorHex = "#6366F1",
-                    cueNote = "Activate parasympathetic tone for deep restorative sleep.",
-                    actionType = "BREATHING",
-                    sortOrder = 11
-                )
-            )
-            dailyRoutineDao.insertAllRoutines(defaults)
-        }
+        // Default seeding removed: only user-created routines should exist
+    }
+
+    suspend fun cleanUpDefaultRoutinesAndPlans() = withContext(Dispatchers.IO) {
+        val defaultRoutineTitles = setOf(
+            "Wake Up & 500ml Water",
+            "Box Breathing 4-4-4-4 Practice",
+            "Sun Salutation & Flow",
+            "Daily Focus Plan & Top 3 Tasks",
+            "Deep Work Focus Block #1",
+            "Desk Neck & Spine Decompression",
+            "Afternoon Deep Sprint #2",
+            "Afternoon Execution Sprint #2",
+            "Outdoor 20-Minute Brisk Walk",
+            "Digital Detox & Evening Journal",
+            "4-7-8 Relaxation Breathing & Bedtime"
+        )
+        val defaultPlanTitles = setOf(
+            "Deep Work: 10 Hours Milestone",
+            "Review Weekly Goals & Priorities",
+            "Mid-week Energy Calibration",
+            "Finish Major Project Milestone",
+            "Inbox Zero & Desk Declutter"
+        )
+        try {
+            val routines = dailyRoutineDao.getAllRoutines().firstOrNull() ?: emptyList()
+            routines.filter { it.title in defaultRoutineTitles }.forEach {
+                dailyRoutineDao.deleteRoutine(it)
+            }
+            val plans = weeklyPlanDao.getAllWeeklyPlans().firstOrNull() ?: emptyList()
+            plans.filter { it.title in defaultPlanTitles }.forEach {
+                weeklyPlanDao.deleteWeeklyPlan(it)
+            }
+        } catch (_: Exception) {}
     }
 
     // --- Journal ---
@@ -782,69 +691,231 @@ class RacerRepository(private val context: Context) {
     }
 
     suspend fun seedDefaultWeeklyPlansIfEmpty(weekNumber: Int, year: Int) = withContext(Dispatchers.IO) {
-        val existing = weeklyPlanDao.getPlansForWeek(weekNumber, year).firstOrNull() ?: emptyList()
-        if (existing.isEmpty()) {
-            val defaults = listOf(
-                WeeklyPlanEntity(
-                    weekNumber = weekNumber,
-                    year = year,
-                    title = "Deep Work: 10 Hours Milestone",
-                    description = "Accumulate 10 high-quality Pomodoro or ADHD gentle focus hours",
-                    dayOfWeek = "ALL",
-                    isCompleted = false,
-                    priority = "HIGH",
-                    category = "Productivity",
-                    targetTimeMinutes = 600
-                ),
-                WeeklyPlanEntity(
-                    weekNumber = weekNumber,
-                    year = year,
-                    title = "Review Weekly Goals & Priorities",
-                    description = "Set top 3 focal milestones for the upcoming cycle",
-                    dayOfWeek = "MON",
-                    isCompleted = true,
-                    priority = "HIGH",
-                    category = "Planning",
-                    targetTimeMinutes = 30
-                ),
-                WeeklyPlanEntity(
-                    weekNumber = weekNumber,
-                    year = year,
-                    title = "Mid-week Energy Calibration",
-                    description = "Do a 15-minute box breathing reset & desk stretches",
-                    dayOfWeek = "WED",
-                    isCompleted = false,
-                    priority = "MEDIUM",
-                    category = "Wellness",
-                    targetTimeMinutes = 15
-                ),
-                WeeklyPlanEntity(
-                    weekNumber = weekNumber,
-                    year = year,
-                    title = "Finish Major Project Milestone",
-                    description = "Submit or complete primary work/study deliverables",
-                    dayOfWeek = "THU",
-                    isCompleted = false,
-                    priority = "HIGH",
-                    category = "Work",
-                    targetTimeMinutes = 180
-                ),
-                WeeklyPlanEntity(
-                    weekNumber = weekNumber,
-                    year = year,
-                    title = "Inbox Zero & Desk Declutter",
-                    description = "Clear digital tabs, clean workspace for a fresh weekend",
-                    dayOfWeek = "FRI",
-                    isCompleted = false,
-                    priority = "LOW",
-                    category = "Organize",
-                    targetTimeMinutes = 20
-                )
-            )
-            defaults.forEach { weeklyPlanDao.insertWeeklyPlan(it) }
+        // Default seeding removed: only user-created weekly plans should exist
+    }
+
+    suspend fun reorderDailyRoutine(id: Long, moveUp: Boolean) = withContext(Dispatchers.IO) {
+        val list = dailyRoutineDao.getAllRoutines().firstOrNull() ?: return@withContext
+        val index = list.indexOfFirst { it.id == id }
+        if (index == -1) return@withContext
+        val targetIndex = if (moveUp) index - 1 else index + 1
+        if (targetIndex in list.indices) {
+            val current = list[index]
+            val target = list[targetIndex]
+            val currentOrder = current.sortOrder
+            val targetOrder = target.sortOrder
+            val newCurrent = if (currentOrder == targetOrder) (if (moveUp) targetOrder - 1 else targetOrder + 1) else targetOrder
+            dailyRoutineDao.updateRoutine(current.copy(sortOrder = newCurrent))
+            dailyRoutineDao.updateRoutine(target.copy(sortOrder = currentOrder))
         }
     }
+
+    suspend fun reorderWeeklyPlan(id: Long, moveUp: Boolean) = withContext(Dispatchers.IO) {
+        val list = weeklyPlanDao.getAllWeeklyPlans().firstOrNull() ?: return@withContext
+        val index = list.indexOfFirst { it.id == id }
+        if (index == -1) return@withContext
+        val targetIndex = if (moveUp) index - 1 else index + 1
+        if (targetIndex in list.indices) {
+            val current = list[index]
+            val target = list[targetIndex]
+            val currentOrder = current.sortOrder
+            val targetOrder = target.sortOrder
+            val newCurrent = if (currentOrder == targetOrder) (if (moveUp) targetOrder - 1 else targetOrder + 1) else targetOrder
+            weeklyPlanDao.updateWeeklyPlan(current.copy(sortOrder = newCurrent))
+            weeklyPlanDao.updateWeeklyPlan(target.copy(sortOrder = currentOrder))
+        }
+    }
+
+    suspend fun getCustomTaskCategories(): List<String> = withContext(Dispatchers.IO) {
+        val saved = getSetting("custom_task_categories", "")
+        if (saved.isBlank()) emptyList() else saved.split("|").filter { it.isNotBlank() }
+    }
+
+    suspend fun addCustomTaskCategory(cat: String) = withContext(Dispatchers.IO) {
+        val clean = cat.trim()
+        if (clean.isBlank()) return@withContext
+        val current = getCustomTaskCategories().toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            setSetting("custom_task_categories", current.joinToString("|"))
+        }
+    }
+
+    suspend fun deleteCustomTaskCategory(cat: String) = withContext(Dispatchers.IO) {
+        val current = getCustomTaskCategories().toMutableList()
+        current.remove(cat.trim())
+        setSetting("custom_task_categories", current.joinToString("|"))
+    }
+
+    suspend fun getCustomWeeklyCategories(): List<String> = withContext(Dispatchers.IO) {
+        val saved = getSetting("custom_weekly_categories", "")
+        if (saved.isBlank()) emptyList() else saved.split("|").filter { it.isNotBlank() }
+    }
+
+    suspend fun addCustomWeeklyCategory(cat: String) = withContext(Dispatchers.IO) {
+        val clean = cat.trim()
+        if (clean.isBlank()) return@withContext
+        val current = getCustomWeeklyCategories().toMutableList()
+        if (!current.contains(clean)) {
+            current.add(clean)
+            setSetting("custom_weekly_categories", current.joinToString("|"))
+        }
+    }
+
+    suspend fun deleteCustomWeeklyCategory(cat: String) = withContext(Dispatchers.IO) {
+        val current = getCustomWeeklyCategories().toMutableList()
+        current.remove(cat.trim())
+        setSetting("custom_weekly_categories", current.joinToString("|"))
+    }
+
+    // --- Custom Study Rooms ---
+    suspend fun getCustomStudyRooms(): List<CustomStudyRoom> = withContext(Dispatchers.IO) {
+        val jsonStr = settingsDao.getSettingValue("custom_study_rooms_json") ?: return@withContext emptyList()
+        try {
+            val arr = org.json.JSONArray(jsonStr)
+            val list = mutableListOf<CustomStudyRoom>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val partnersArr = obj.optJSONArray("partnerNames")
+                val partners = mutableListOf<String>()
+                if (partnersArr != null) {
+                    for (j in 0 until partnersArr.length()) {
+                        partners.add(partnersArr.getString(j))
+                    }
+                }
+                list.add(
+                    CustomStudyRoom(
+                        id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                        name = obj.getString("name"),
+                        purpose = obj.optString("purpose", "Deep Study & Focus"),
+                        creatorName = obj.optString("creatorName", "You (Host)"),
+                        focusMinutes = obj.optInt("focusMinutes", 25),
+                        breakMinutes = obj.optInt("breakMinutes", 5),
+                        ambientSound = obj.optString("ambientSound", "Gentle Rain"),
+                        mode = obj.optString("mode", "POMODORO"),
+                        partnerNames = partners,
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun saveCustomStudyRoom(room: CustomStudyRoom) = withContext(Dispatchers.IO) {
+        val existing = getCustomStudyRooms().toMutableList()
+        val index = existing.indexOfFirst { it.id == room.id }
+        if (index >= 0) {
+            existing[index] = room
+        } else {
+            existing.add(0, room)
+        }
+        saveStudyRoomsInternal(existing)
+    }
+
+    suspend fun deleteCustomStudyRoom(id: String) = withContext(Dispatchers.IO) {
+        val existing = getCustomStudyRooms().filter { it.id != id }
+        saveStudyRoomsInternal(existing)
+    }
+
+    private suspend fun saveStudyRoomsInternal(rooms: List<CustomStudyRoom>) {
+        val arr = org.json.JSONArray()
+        rooms.forEach { r ->
+            val obj = org.json.JSONObject().apply {
+                put("id", r.id)
+                put("name", r.name)
+                put("purpose", r.purpose)
+                put("creatorName", r.creatorName)
+                put("focusMinutes", r.focusMinutes)
+                put("breakMinutes", r.breakMinutes)
+                put("ambientSound", r.ambientSound)
+                put("mode", r.mode)
+                put("partnerNames", org.json.JSONArray(r.partnerNames))
+                put("createdAt", r.createdAt)
+            }
+            arr.put(obj)
+        }
+        settingsDao.setSetting(SettingsEntity("custom_study_rooms_json", arr.toString()))
+    }
+
+    // --- Manifestations ---
+    val allManifestations: Flow<List<com.example.data.entity.ManifestationEntity>> = manifestationDao.getAllActiveManifestations()
+
+    suspend fun insertManifestation(manifestation: com.example.data.entity.ManifestationEntity): Long = withContext(Dispatchers.IO) {
+        manifestationDao.insertManifestation(manifestation)
+    }
+
+    suspend fun updateManifestation(manifestation: com.example.data.entity.ManifestationEntity) = withContext(Dispatchers.IO) {
+        manifestationDao.updateManifestation(manifestation)
+    }
+
+    suspend fun deleteManifestation(id: Long) = withContext(Dispatchers.IO) {
+        manifestationDao.deleteManifestationById(id)
+    }
+
+    // --- App Usage Limits ---
+    val allAppUsageLimits: Flow<List<com.example.data.entity.AppUsageLimitEntity>> = appUsageLimitDao.getAllLimits()
+
+    suspend fun saveAppUsageLimit(limit: com.example.data.entity.AppUsageLimitEntity) = withContext(Dispatchers.IO) {
+        appUsageLimitDao.insertOrUpdateLimit(limit)
+    }
+
+    suspend fun deleteAppUsageLimit(packageName: String) = withContext(Dispatchers.IO) {
+        appUsageLimitDao.deleteLimit(packageName)
+    }
+
+    // --- Coins & Gamification ---
+    suspend fun getCoinBalance(): Int = withContext(Dispatchers.IO) {
+        getSetting("user_coins_balance", "120").toIntOrNull() ?: 120
+    }
+
+    suspend fun addCoins(amount: Int): Int = withContext(Dispatchers.IO) {
+        val current = getCoinBalance()
+        val newBalance = (current + amount).coerceAtLeast(0)
+        setSetting("user_coins_balance", newBalance.toString())
+        newBalance
+    }
+
+    // --- Google Account & Protection ---
+    suspend fun getGoogleUserEmail(): String = withContext(Dispatchers.IO) {
+        getSetting("google_account_email", "whoiamfirstname@gmail.com")
+    }
+
+    suspend fun setGoogleUserEmail(email: String) = withContext(Dispatchers.IO) {
+        setSetting("google_account_email", email)
+    }
+
+    suspend fun isGoogleAccountLinked(): Boolean = withContext(Dispatchers.IO) {
+        getSetting("is_google_account_linked", "true").toBoolean()
+    }
+
+    suspend fun setGoogleAccountLinked(linked: Boolean) = withContext(Dispatchers.IO) {
+        setSetting("is_google_account_linked", linked.toString())
+    }
+
+    suspend fun getLastGoogleSyncTimestamp(): Long = withContext(Dispatchers.IO) {
+        getSetting("google_last_sync_timestamp", "${System.currentTimeMillis()}").toLongOrNull() ?: System.currentTimeMillis()
+    }
+
+    suspend fun recordGoogleSync() = withContext(Dispatchers.IO) {
+        setSetting("google_last_sync_timestamp", "${System.currentTimeMillis()}")
+    }
 }
+
+data class CustomStudyRoom(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String,
+    val purpose: String,
+    val creatorName: String = "You (Host)",
+    val focusMinutes: Int = 25,
+    val breakMinutes: Int = 5,
+    val ambientSound: String = "Gentle Rain",
+    val mode: String = "POMODORO", // POMODORO, STOPWATCH, DEEP_WORK
+    val partnerNames: List<String> = emptyList(),
+    val createdAt: Long = System.currentTimeMillis()
+)
 
 data class FocusStatistics(
     val todaySeconds: Long = 0,

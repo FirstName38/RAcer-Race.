@@ -9,10 +9,10 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
-import com.example.data.db.AppDatabase
+import com.example.data.database.AppDatabase
+import com.example.data.entity.WeeklyPlanEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -30,10 +30,16 @@ class WeeklyPlanWidgetProvider : AppWidgetProvider() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val db = AppDatabase.getInstance(context)
-                val weekStartPref = db.userSettingDao().getSetting("app_week_start_day")?.settingValue ?: "MONDAY"
+                val db = AppDatabase.getDatabase(context)
+                val weekStartPref = db.settingsDao().getSettingValue("week_start_day")
+                    ?: db.settingsDao().getSettingValue("app_week_start_day") ?: "MONDAY"
                 val firstDay = when (weekStartPref.uppercase()) {
                     "SUNDAY" -> Calendar.SUNDAY
+                    "MONDAY" -> Calendar.MONDAY
+                    "TUESDAY" -> Calendar.TUESDAY
+                    "WEDNESDAY" -> Calendar.WEDNESDAY
+                    "THURSDAY" -> Calendar.THURSDAY
+                    "FRIDAY" -> Calendar.FRIDAY
                     "SATURDAY" -> Calendar.SATURDAY
                     else -> Calendar.MONDAY
                 }
@@ -47,7 +53,7 @@ class WeeklyPlanWidgetProvider : AppWidgetProvider() {
                 val maxWeeks = cal.getActualMaximum(Calendar.WEEK_OF_YEAR)
                 val weeksLeft = (maxWeeks - currentWeek).coerceAtLeast(0)
 
-                val plans = db.weeklyPlanDao().getPlansForWeek(currentWeek, currentYear).firstOrNull() ?: emptyList()
+                val plans: List<WeeklyPlanEntity> = db.weeklyPlanDao().getPlansForWeekOnce(currentWeek, currentYear)
                 val total = plans.size
                 val done = plans.count { it.isCompleted }
                 val rate = if (total > 0) (done.toFloat() / total * 100f).toInt() else 0

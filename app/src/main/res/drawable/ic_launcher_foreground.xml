@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/focusflow_launcher_icon_1792662254643"
+        android:drawable="@drawable/ic_focus_prism"
         android:gravity="center" />
 </layer-list>

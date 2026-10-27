@@ -20,14 +20,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -100,7 +107,16 @@ fun JournalScreen(
     var gratitudeText by remember { mutableStateOf("") }
     var freeformNotes by remember { mutableStateOf("") }
     var mood by remember { mutableStateOf(JournalMood.GOOD) }
+    var attachedImageUris by remember { mutableStateOf<List<String>>(emptyList()) }
     var showSavedBanner by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            attachedImageUris = attachedImageUris + it.toString()
+        }
+    }
 
     LaunchedEffect(currentDateStr, existingEntry) {
         if (existingEntry != null) {
@@ -110,6 +126,7 @@ fun JournalScreen(
             gratitudeText = existingEntry.gratitudeText
             freeformNotes = existingEntry.freeformNotes
             mood = existingEntry.mood
+            attachedImageUris = existingEntry.imageUrisCsv.split(",").filter { it.isNotBlank() }
         } else {
             learnedText = ""
             feltText = ""
@@ -117,6 +134,7 @@ fun JournalScreen(
             gratitudeText = ""
             freeformNotes = ""
             mood = JournalMood.GOOD
+            attachedImageUris = emptyList()
         }
     }
 
@@ -336,6 +354,86 @@ fun JournalScreen(
                     )
                 }
 
+                // Image Attachments Section (Request 7)
+                item {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(20.dp))
+                                    Text(
+                                        text = "Photo Attachments (${attachedImageUris.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.25f))
+                                ) {
+                                    Text("+ Add Photo", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+
+                            if (attachedImageUris.isNotEmpty()) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    items(attachedImageUris) { uriStr ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(90.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(Color(0xFF1E1B2E))
+                                        ) {
+                                            AsyncImage(
+                                                model = uriStr,
+                                                contentDescription = "Journal Attachment",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp)
+                                                    .size(22.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.Black.copy(alpha = 0.7f))
+                                                    .clickable {
+                                                        attachedImageUris = attachedImageUris - uriStr
+                                                    },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "Capture a whiteboard sketch, book quote, or visual memory for today.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Button(
                         onClick = {
@@ -346,8 +444,10 @@ fun JournalScreen(
                                 wantToDoText = wantToDoText,
                                 gratitudeText = gratitudeText,
                                 freeformNotes = freeformNotes,
-                                mood = mood
+                                mood = mood,
+                                imageUrisCsv = attachedImageUris.joinToString(",")
                             )
+                            viewModel.awardCoins(10, "Logged daily reflection with visual attachments")
                             showSavedBanner = true
                         },
                         modifier = Modifier.fillMaxWidth(),

@@ -49,7 +49,11 @@ data class TaskEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,
     val isArchived: Boolean = false,
-    val subtasksJson: String = "[]" // JSON array of string subtasks / steps
+    val subtasksJson: String = "[]", // JSON array of string subtasks / steps
+    val reminderType: String = "NOTIFICATION", // NOTIFICATION, ALARM, BOTH
+    val reminderSound: String = "default",
+    val weeklyPlanWeekNumber: Int? = null,
+    val sortOrder: Int = 0
 )
 
 @Entity(tableName = "habits")
@@ -145,7 +149,11 @@ data class AlarmEntity(
     val soundName: String = "default",
     val vibrateEnabled: Boolean = true,
     val snoozeMinutes: Int = 5,
-    val isBedtimeAlarm: Boolean = false
+    val isBedtimeAlarm: Boolean = false,
+    val volume: Float = 0.8f,
+    val ringLengthSeconds: Int = 60,
+    val silenceAfterMinutes: Int = 10,
+    val isWakeUpAlarm: Boolean = false
 )
 
 @Entity(tableName = "app_usage")
@@ -179,7 +187,7 @@ data class ChatMessageEntity(
 data class DailyRoutineEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
-    val timeSlot: String = "MORNING", // MORNING, DEEP_WORK, MIDDAY, AFTERNOON, EVENING, NIGHT
+    val timeSlot: String = "MORNING", // MORNING, DEEP_WORK, MIDDAY, AFTERNOON, EVENING, NIGHT, CUSTOM
     val scheduledTime: String = "07:00", // "HH:mm"
     val durationMinutes: Int = 15,
     val iconName: String = "wb_sunny",
@@ -188,7 +196,10 @@ data class DailyRoutineEntity(
     val lastCompletedDate: String = "", // "YYYY-MM-DD"
     val cueNote: String = "",
     val actionType: String = "NONE", // NONE, BREATHING, FOCUS, YOGA, JOURNAL, STRETCH
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val customSlotName: String = "",
+    val isTimeOptional: Boolean = false,
+    val isDurationOptional: Boolean = false
 )
 
 @Entity(tableName = "weekly_plans")
@@ -203,5 +214,33 @@ data class WeeklyPlanEntity(
     val priority: String = "HIGH", // HIGH, MEDIUM, LOW
     val category: String = "General",
     val targetTimeMinutes: Int = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+    val sortOrder: Int = 0,
+    val dailyBreakdownJson: String = "[]" // JSON representation of Mon-Sun task divisions
+)
+
+@Entity(tableName = "manifestations")
+data class ManifestationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val description: String = "",
+    val imageUri: String? = null,
+    val priority: String = "HIGH", // HIGH, MEDIUM, LOW
+    val sortOrder: Int = 0,
+    val reminderEnabled: Boolean = false,
+    val reminderTimeString: String? = "08:00",
+    val isArchived: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "app_usage_limits")
+data class AppUsageLimitEntity(
+    @PrimaryKey val packageName: String,
+    val appName: String,
+    val category: String = "PRODUCTIVE", // PRODUCTIVE, DISTRACTION, OTHER, CUSTOM
+    val customCategoryName: String = "",
+    val dailyLimitMinutes: Int = 60,
+    val isBlocked: Boolean = false,
+    val allowedTimeRangesJson: String = "[]", // e.g. [{"name":"duration 1","start":"09:00","end":"12:00"}]
+    val notes: String = ""
 )

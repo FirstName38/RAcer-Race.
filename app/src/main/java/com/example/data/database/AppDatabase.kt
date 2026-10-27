@@ -90,9 +90,11 @@ class Converters {
         WellnessRoutineEntity::class,
         WellnessLogEntity::class,
         com.example.data.entity.DailyRoutineEntity::class,
-        com.example.data.entity.WeeklyPlanEntity::class
+        com.example.data.entity.WeeklyPlanEntity::class,
+        com.example.data.entity.ManifestationEntity::class,
+        com.example.data.entity.AppUsageLimitEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -109,6 +111,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun wellnessDao(): WellnessDao
     abstract fun dailyRoutineDao(): com.example.data.dao.DailyRoutineDao
     abstract fun weeklyPlanDao(): com.example.data.dao.WeeklyPlanDao
+    abstract fun manifestationDao(): com.example.data.dao.ManifestationDao
+    abstract fun appUsageLimitDao(): com.example.data.dao.AppUsageLimitDao
 
     companion object {
         @Volatile

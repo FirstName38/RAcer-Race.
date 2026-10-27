@@ -108,6 +108,10 @@ class FocusTimerService : Service() {
                     loop = loop
                 )
             }
+            ACTION_TAKE_BREAK -> {
+                val breakMins = intent.getIntExtra(EXTRA_BREAK_MINUTES, 5).coerceAtLeast(1)
+                takeBreakSession(breakMins)
+            }
             ACTION_PAUSE -> pauseSession()
             ACTION_RESUME -> resumeSession()
             ACTION_NEXT -> nextSessionOrBreak()
@@ -303,14 +307,62 @@ class FocusTimerService : Service() {
             // Break finished! Save break record and transition to next focus session
             saveSessionRecord(
                 completed = true,
-                sessionType = if (state.breakType == "LONG") "LONG_BREAK" else "SHORT_BREAK",
+                sessionType = if (state.breakType == "LONG") "LONG_BREAK" else if (state.breakType == "TAKE_BREAK") "TAKE_BREAK" else "SHORT_BREAK",
                 actualSeconds = state.elapsedSeconds,
                 plannedMinutes = state.totalSeconds / 60
             )
 
             FocusAudioSynthesizer.playBreakEndSessionStartChime()
-            advanceToNextFocusSession(now, nowStr)
+            if (state.breakType == "TAKE_BREAK" && state.mode == FocusMode.STOPWATCH) {
+                // Resume stopwatch count-up
+                _timerState.value = state.copy(
+                    isBreak = false,
+                    isPaused = false,
+                    breakType = "NONE",
+                    currentSeconds = 0,
+                    totalSeconds = 0,
+                    elapsedSeconds = 0,
+                    sessionStartTimeMillis = now,
+                    clockStartTimeStr = nowStr
+                )
+                FocusAudioSynthesizer.playSound(state.currentSound, state.volume)
+                updateNotification(0, state.mode, 0)
+            } else {
+                advanceToNextFocusSession(now, nowStr)
+            }
         }
+    }
+
+    private fun takeBreakSession(breakMinutes: Int) {
+        val state = _timerState.value
+        if (!state.isRunning) return
+        val now = System.currentTimeMillis()
+        val nowStr = timeFormat.format(Date(now))
+
+        if (state.elapsedSeconds > 5) {
+            saveSessionRecord(
+                completed = false,
+                sessionType = if (state.mode == FocusMode.STOPWATCH) "STOPWATCH_FOCUS" else "FOCUS",
+                actualSeconds = state.elapsedSeconds,
+                plannedMinutes = state.totalSeconds / 60
+            )
+        }
+
+        FocusAudioSynthesizer.stopSound(fadeOut = true)
+        FocusAudioSynthesizer.playSessionEndBreakStartChime()
+
+        _timerState.value = state.copy(
+            isBreak = true,
+            isPaused = false,
+            breakType = "TAKE_BREAK",
+            currentSeconds = breakMinutes * 60,
+            totalSeconds = breakMinutes * 60,
+            elapsedSeconds = 0,
+            sessionStartTimeMillis = now,
+            clockStartTimeStr = nowStr
+        )
+
+        updateNotification(breakMinutes * 60, state.mode, 0)
     }
 
     private fun nextSessionOrBreak() {
@@ -324,13 +376,29 @@ class FocusTimerService : Service() {
             if (state.elapsedSeconds > 2) {
                 saveSessionRecord(
                     completed = true,
-                    sessionType = if (state.breakType == "LONG") "LONG_BREAK" else "SHORT_BREAK",
+                    sessionType = if (state.breakType == "LONG") "LONG_BREAK" else if (state.breakType == "TAKE_BREAK") "TAKE_BREAK" else "SHORT_BREAK",
                     actualSeconds = state.elapsedSeconds,
                     plannedMinutes = state.totalSeconds / 60
                 )
             }
             FocusAudioSynthesizer.playBreakEndSessionStartChime()
-            advanceToNextFocusSession(now, nowStr)
+            if (state.breakType == "TAKE_BREAK" && state.mode == FocusMode.STOPWATCH) {
+                // Resume stopwatch
+                _timerState.value = state.copy(
+                    isBreak = false,
+                    isPaused = false,
+                    breakType = "NONE",
+                    currentSeconds = 0,
+                    totalSeconds = 0,
+                    elapsedSeconds = 0,
+                    sessionStartTimeMillis = now,
+                    clockStartTimeStr = nowStr
+                )
+                FocusAudioSynthesizer.playSound(state.currentSound, state.volume)
+                updateNotification(0, state.mode, 0)
+            } else {
+                advanceToNextFocusSession(now, nowStr)
+            }
         } else {
             // Skip/complete focus early -> save actual focus time
             saveSessionRecord(
@@ -573,10 +641,12 @@ class FocusTimerService : Service() {
         const val ACTION_NEXT = "com.example.action.NEXT"
         const val ACTION_EXTEND = "com.example.action.EXTEND"
         const val ACTION_STOP = "com.example.action.STOP"
+        const val ACTION_TAKE_BREAK = "com.example.action.TAKE_BREAK"
         const val ACTION_SET_SOUND = "com.example.action.SET_SOUND"
         const val ACTION_SET_VOLUME = "com.example.action.SET_VOLUME"
 
         const val EXTRA_MODE = "extra_mode"
+        const val EXTRA_BREAK_MINUTES = "extra_break_minutes"
         const val EXTRA_DURATION_MINUTES = "extra_duration_minutes"
         const val EXTRA_SOUND = "extra_sound"
         const val EXTRA_VOLUME = "extra_volume"

@@ -1,6 +1,13 @@
 package com.example.ui.screens.home
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,20 +24,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,27 +48,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import com.example.data.entity.WeeklyPlanEntity
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.entity.WeeklyPlanEntity
 import com.example.data.model.FocusMode
-import com.example.data.model.TaskPriority
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GlowingOrb
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.MeetingRoom
-import com.example.ui.components.StreakPill
+import com.example.ui.theme.AmberWarning
 import com.example.ui.theme.CharcoalBorder
 import com.example.ui.theme.CharcoalCard
 import com.example.ui.theme.CharcoalCardElevated
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.EmeraldSuccess
-import com.example.ui.theme.PrimaryGradient
 import com.example.ui.theme.RoseUrgent
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -95,33 +101,49 @@ fun HomeScreen(
     val greeting = rememberGreeting()
     val topTask = tasks.firstOrNull { !it.isCompleted }
 
+    // Routine metrics
     val routineTotal = dailyRoutines.size
     val routineCompleted = dailyRoutines.count { it.isCompletedToday }
     val routineRate = if (routineTotal > 0) (routineCompleted.toFloat() / routineTotal * 100f) else 0f
     val routineAbove70 = routineRate >= 70f
     val routineColor = if (routineAbove70) EmeraldSuccess else RoseUrgent
 
-    // Dynamic Weekly Plan metrics
-    val cal = remember(weekStartDay) {
-        val firstDay = when (weekStartDay.uppercase()) {
-            "SUNDAY" -> Calendar.SUNDAY
-            "SATURDAY" -> Calendar.SATURDAY
-            else -> Calendar.MONDAY
-        }
-        Calendar.getInstance().apply {
-            firstDayOfWeek = firstDay
-            minimalDaysInFirstWeek = 4
-        }
+    val week1BeginsRule by viewModel.week1BeginsRule.collectAsState()
+    val coins by viewModel.coinBalance.collectAsState()
+    val googleEmail by viewModel.googleAccountEmail.collectAsState()
+    val userDisplayName = remember(googleEmail) {
+        val namePart = googleEmail.substringBefore("@")
+        if (namePart.isNotBlank()) namePart.replaceFirstChar { it.uppercase() } else "Flow"
     }
-    val currentWeekNum = cal.get(Calendar.WEEK_OF_YEAR)
-    val maxWeeks = cal.getActualMaximum(Calendar.WEEK_OF_YEAR)
-    val weeksRemaining = (maxWeeks - currentWeekNum).coerceAtLeast(0)
-    val thisWeekPlans = weeklyPlans.filter { it.weekNumber == currentWeekNum }
+
+    // Dynamic Week & Date calculation using user settings
+    val weekInfo = remember(weekStartDay, week1BeginsRule) {
+        com.example.util.WeekCalculationHelper.calculateWeekInfo(
+            weekStartDay = weekStartDay,
+            week1BeginsRule = week1BeginsRule
+        )
+    }
+
+    val currentWeekNum = weekInfo.currentWeekNumber
+    val weeksRemaining = weekInfo.weeksRemainingInYear
+    val thisWeekPlans = weeklyPlans.filter { plan: WeeklyPlanEntity -> plan.weekNumber == currentWeekNum }
     val weeklyTotal = thisWeekPlans.size
     val weeklyDone = thisWeekPlans.count { it.isCompleted }
     val weeklyRate = if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal * 100f) else 0f
     val weeklyAbove70 = weeklyRate >= 70f
-    val weeklyColor = if (weeklyAbove70) EmeraldSuccess else RoseUrgent
+    val weeklyColor = if (weeklyTotal == 0) CyanAccent else if (weeklyAbove70) EmeraldSuccess else RoseUrgent
+
+    // Ambient pulse animation for active elements
+    val infiniteTransition = rememberInfiniteTransition(label = "home_pulse")
+    val pulseGlow by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
 
     LazyColumn(
         modifier = modifier
@@ -130,517 +152,357 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            // Header Row: Greeting + Streak Pill
+            Spacer(modifier = Modifier.height(6.dp))
+            // 1. Dynamic Identity Header (Matches Screenshot 6)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    // UPPERCASE DAY, DATE · WEEK NUMBER (Screenshot 6: MONDAY 26 OCTOBER · WEEK 43)
                     Text(
-                        text = greeting,
+                        text = weekInfo.dayDateUpperStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFA78BFA),
+                        letterSpacing = 1.1.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "$greeting, $userDisplayName.",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    // NO OF WEEKS LEFT IN YEAR (Screenshot 6: 10 weeks left this year. One block at a time.)
                     Text(
-                        text = "Ready to step into your calm focus zone?",
+                        text = weekInfo.subtitleText,
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
                 }
-                StreakPill(streakCount = stats.currentStreak)
-            }
-        }
 
-        // Dedicated Session Dashboard & History Shortcut
-        item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = VioletPrimary.copy(alpha = 0.4f),
-                onClick = onNavigateToSessions
-            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    // Coins Balance Pill
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFBBF24).copy(alpha = 0.18f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.5f))
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(VioletPrimary.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("🪙", fontSize = 13.sp)
+                            Text(
+                                text = "$coins",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFBBF24)
+                            )
+                        }
+                    }
+
+                    // Fire Streak Pill
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFF59E0B).copy(alpha = 0.18f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = androidx.compose.material.icons.Icons.Default.Schedule,
-                                contentDescription = "Session Dashboard",
-                                tint = VioletPrimary
+                                imageVector = Icons.Default.LocalFireDepartment,
+                                contentDescription = "Streak",
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(16.dp)
                             )
-                        }
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Session Dashboard",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = CyanAccent.copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = "${stats.todaySeconds / 60}m today",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = CyanAccent,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
                             Text(
-                                text = "View chronological logs, rhythms & cycle history",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = onNavigateToSessions,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary.copy(alpha = 0.25f))
-                    ) {
-                        Text("History →", color = VioletPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
-        // Dedicated Daily Routine Section Card
-        item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = routineColor.copy(alpha = 0.5f),
-                onClick = onNavigateToRoutine
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(routineColor.copy(alpha = 0.18f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Repeat,
-                                    contentDescription = "Daily Routine",
-                                    tint = routineColor
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Daily Routine Planner",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "$routineCompleted of $routineTotal blocks completed",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
-                                )
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = routineColor.copy(alpha = 0.16f)
-                        ) {
-                            Text(
-                                text = "${routineRate.toInt()}% " + (if (routineAbove70) "Optimal (>=70%)" else "Below 70%"),
-                                color = routineColor,
-                                fontSize = 11.sp,
+                                text = "${stats.currentStreak}d",
+                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = Color(0xFFF59E0B)
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    LinearProgressIndicator(
-                        progress = { if (routineTotal > 0) (routineCompleted.toFloat() / routineTotal).coerceIn(0f, 1f) else 0f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = routineColor,
-                        trackColor = CharcoalBorder
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (routineAbove70) "● Routine on track (Green >= 70%)" else "● Routine needs focus (Red < 70%)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = routineColor,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Open Routine →",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CyanAccent,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
                 }
             }
         }
 
-        // Dedicated Weekly Plan Section Card
+        // 2. Active Session Radar / Quick Launchpad
         item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = weeklyColor.copy(alpha = 0.5f),
-                onClick = onNavigateToWeeklyPlan
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(weeklyColor.copy(alpha = 0.18f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = "Weekly Plan",
-                                    tint = weeklyColor
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Weekly Plan (Week $currentWeekNum)",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "$weeksRemaining weeks left in year • $weeklyDone of $weeklyTotal done",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
-                                )
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = weeklyColor.copy(alpha = 0.16f)
-                        ) {
-                            Text(
-                                text = "${weeklyRate.toInt()}% " + (if (weeklyAbove70) "Target Met" else "Under 70%"),
-                                color = weeklyColor,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    LinearProgressIndicator(
-                        progress = { if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal).coerceIn(0f, 1f) else 0f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = weeklyColor,
-                        trackColor = CharcoalBorder
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (weeklyAbove70) "● Weekly progress >= 70% (Success)" else "● Weekly progress < 70% (Needs action)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = weeklyColor,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Manage Week →",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = CyanAccent,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        // Hero Quick Focus Orb Card
-        item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = VioletPrimary.copy(alpha = 0.5f),
-                onClick = onNavigateToFocus
-            ) {
-                Column(
+            if (timerState.isRunning) {
+                // Pulsating active radar banner
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = EmeraldSuccess.copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldSuccess.copy(alpha = pulseGlow)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .clickable { onNavigateToFocus() }
                 ) {
-                    GlowingOrb(
-                        size = 110.dp,
-                        isPulsing = timerState.isRunning,
-                        onClick = {
-                            if (timerState.isRunning) {
-                                onNavigateToFocus()
-                            } else {
-                                viewModel.startFocus(mode = FocusMode.ADHD, durationMinutes = 25)
-                                onNavigateToFocus()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldSuccess.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Timer,
+                                    contentDescription = null,
+                                    tint = EmeraldSuccess,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Column {
+                                val mins = timerState.currentSeconds / 60
+                                val secs = timerState.currentSeconds % 60
+                                Text(
+                                    text = "Deep Focus Active: %02d:%02d".format(mins, secs),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess
+                                )
+                                Text(
+                                    text = if (!timerState.activeTaskTitle.isNullOrBlank()) "Working on: ${timerState.activeTaskTitle}" else "Dopamine shield engaged",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    maxLines = 1
+                                )
                             }
                         }
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = if (timerState.isRunning) "Session in Flow" else "Tap Orb to Start Focus",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = CyanAccent
-                    )
-                    Text(
-                        text = if (timerState.isRunning) {
-                            val mins = timerState.currentSeconds / 60
-                            val secs = timerState.currentSeconds % 60
-                            "%02d:%02d remaining".format(mins, secs)
-                        } else {
-                            "ADHD Gentle Mode • 25 Min Flow"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted
-                    )
+
+                        Button(
+                            onClick = onNavigateToFocus,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess, contentColor = Color.Black)
+                        ) {
+                            Text("Resume", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
+                // High-Tech Hero Focus Nexus Launchpad
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = CharcoalCardElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Focus Velocity Nexus",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Launch a calm session with one tap",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+
+                            val todayMins = stats.todaySeconds / 60
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = CyanAccent.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "${todayMins}m / 120m goal",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CyanAccent,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        // Daily focus goal progress bar
+                        val dailyGoalProgress = ((stats.todaySeconds / 60f) / 120f).coerceIn(0f, 1f)
+                        LinearProgressIndicator(
+                            progress = { dailyGoalProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = CyanAccent,
+                            trackColor = CharcoalBorder
+                        )
+
+                        // 3 Quick Preset Sprints
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // ADHD 15m Gentle
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = VioletPrimary.copy(alpha = 0.18f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, VioletPrimary.copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        viewModel.startFocus(mode = FocusMode.ADHD, durationMinutes = 15)
+                                        onNavigateToFocus()
+                                    }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("⚡ Gentle 15m", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = VioletPrimary)
+                                    Text("Zero Pressure", fontSize = 9.sp, color = TextMuted)
+                                }
+                            }
+
+                            // Classic 25m Pomodoro
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = CyanAccent.copy(alpha = 0.18f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent.copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        viewModel.startFocus(mode = FocusMode.POMODORO, durationMinutes = 25)
+                                        onNavigateToFocus()
+                                    }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("⏱️ Sprint 25m", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = CyanAccent)
+                                    Text("5m Break Cycle", fontSize = 9.sp, color = TextMuted)
+                                }
+                            }
+
+                            // Deep Work 50m
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.18f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        viewModel.startFocus(mode = FocusMode.CUSTOM, durationMinutes = 50)
+                                        onNavigateToFocus()
+                                    }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("🧠 Deep 50m", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                    Text("High Output", fontSize = 9.sp, color = TextMuted)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Dedicated Focus Room Shortcut Card
+        // 3. Top Actionable Task (ADHD Single-Task Spotlight)
         item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = CyanAccent.copy(alpha = 0.4f),
-                onClick = onNavigateToFocusRoom
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = CharcoalCardElevated,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToTasks() }
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(CyanAccent.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.MeetingRoom, contentDescription = null, tint = CyanAccent)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(CyanAccent)
+                            )
                             Text(
-                                text = "Personal Focus Room",
+                                text = "Next Priority Target",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
                             )
-                            Text(
-                                text = "Camera accountability & private study sanctuary",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted
-                            )
                         }
-                    }
-                    Button(
-                        onClick = onNavigateToFocusRoom,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.2f))
-                    ) {
-                        Text("Enter", color = CyanAccent, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
 
-        // Today's Stats Row (Focus Time + Sessions)
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                GlassCard(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Timer,
-                                contentDescription = null,
-                                tint = CyanAccent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Today's Focus",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TextSecondary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val todayMins = stats.todaySeconds / 60
-                        Text(
-                            text = "${todayMins}m",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-                }
-
-                GlassCard(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = EmeraldSuccess,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Completed",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TextSecondary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "${stats.completedSessions} sessions",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-                }
-            }
-        }
-
-        // Top Actionable Task (ADHD Single-Task Spotlight)
-        item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onNavigateToTasks
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Next Focus Target",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = VioletPrimary.copy(alpha = 0.2f)
                         ) {
                             Text(
                                 text = "ADHD Spotlight",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VioletPrimary,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
                     if (topTask != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            IconButton(
-                                onClick = { viewModel.toggleTask(topTask.id) }
-                            ) {
-                                Icon(
-                                    imageVector = if (topTask.isCompleted) Icons.Default.CheckCircle else Icons.Default.CheckCircle,
-                                    contentDescription = "Complete",
-                                    tint = if (topTask.isCompleted) EmeraldSuccess else CharcoalBorder
-                                )
-                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = topTask.title,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "Est: ${topTask.estimatedMinutes}m • ${topTask.category}",
+                                    text = "Estimated ${topTask.estimatedMinutes}m • ${topTask.category}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextMuted
                                 )
                             }
+
                             Button(
                                 onClick = {
                                     viewModel.startFocus(
@@ -652,115 +514,239 @@ fun HomeScreen(
                                     onNavigateToFocus()
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = VioletPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Focus Now",
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Focus", style = MaterialTheme.typography.labelMedium)
+                                Text("Focus Now", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     } else {
                         Text(
-                            text = "No pending tasks. Tap to add your next small milestone!",
+                            text = "🎉 All cleared! Tap to add your next small milestone.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextMuted,
-                            modifier = Modifier.padding(vertical = 8.dp)
+                            modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
                 }
             }
         }
 
-        // Today's Habits Strip
-        if (habits.isNotEmpty()) {
-            item {
-                GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onNavigateToHabits
+        // 4. Combined Cognitive Rhythms (Routine & Weekly Objectives)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Routine Card
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = CharcoalCardElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, routineColor.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onNavigateToRoutine() }
                 ) {
-                    Column {
-                        val habitDoneTodayCount = habits.count { h -> habitCompletions.any { it.habitId == h.id && it.dateString == todayDateStr } }
-                        val habitRate = if (habits.isNotEmpty()) (habitDoneTodayCount.toFloat() / habits.size * 100f) else 0f
-                        val habitAbove70 = habitRate >= 70f
-                        val habitBadgeColor = if (habitAbove70) EmeraldSuccess else RoseUrgent
-
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Daily Habits",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                )
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = habitBadgeColor.copy(alpha = 0.16f)
-                                ) {
-                                    Text(
-                                        text = "${habitRate.toInt()}% " + (if (habitAbove70) "Target Met" else "Below 70%"),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = habitBadgeColor,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = routineColor, modifier = Modifier.size(18.dp))
                             Text(
-                                text = "View All →",
+                                text = "${routineRate.toInt()}%",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = CyanAccent
+                                fontWeight = FontWeight.Bold,
+                                color = routineColor
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Daily Routine", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("$routineCompleted of $routineTotal done", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 11.sp)
 
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            habits.take(3).forEach { habit ->
-                                val isDone = habitCompletions.any { it.habitId == habit.id && it.dateString == todayDateStr }
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(CharcoalCardElevated)
-                                        .clickable { viewModel.toggleHabitToday(habit.id) }
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isDone) EmeraldSuccess else CharcoalBorder),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        if (isDone) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = Color.White,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(
-                                        text = habit.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (isDone) TextMuted else TextPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
+                        LinearProgressIndicator(
+                            progress = { if (routineTotal > 0) (routineCompleted.toFloat() / routineTotal).coerceIn(0f, 1f) else 0f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = routineColor,
+                            trackColor = CharcoalBorder
+                        )
+                    }
+                }
+
+                // Weekly Plan Card
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = CharcoalCardElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, weeklyColor.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onNavigateToWeeklyPlan() }
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = weeklyColor, modifier = Modifier.size(18.dp))
+                            Text(
+                                text = if (weeklyTotal == 0) "Plan" else "${weeklyRate.toInt()}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = weeklyColor
+                            )
+                        }
+
+                        Text("Week $currentWeekNum Goals", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("$weeklyDone of $weeklyTotal completed", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 11.sp)
+
+                        LinearProgressIndicator(
+                            progress = { if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal).coerceIn(0f, 1f) else 0f },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = weeklyColor,
+                            trackColor = CharcoalBorder
+                        )
+                    }
+                }
+            }
+        }
+
+        // 5. Quick Command Bento Grid (2x2)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Tile 1: Focus Room
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToFocusRoom() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(VioletPrimary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.MeetingRoom, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(18.dp))
+                            }
+                            Column {
+                                Text("Focus Room", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Co-working", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+
+                    // Tile 2: Calendar & Deadlines
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToCalendar() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(CyanAccent.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(18.dp))
+                            }
+                            Column {
+                                Text("Deadlines", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Exam matrix", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Tile 3: Habit Tracker
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToHabits() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(EmeraldSuccess.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Repeat, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(18.dp))
+                            }
+                            Column {
+                                Text("Habits", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("${habits.size} active", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 10.sp)
+                            }
+                        }
+                    }
+
+                    // Tile 4: Luma AI Companion
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = CharcoalCard,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onNavigateToAI() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFFF2A85).copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFFF2A85), modifier = Modifier.size(18.dp))
+                            }
+                            Column {
+                                Text("Luma AI", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Ask anything", style = MaterialTheme.typography.bodySmall, color = TextMuted, fontSize = 10.sp)
                             }
                         }
                     }
@@ -768,51 +754,40 @@ fun HomeScreen(
             }
         }
 
-        // Luma AI Assistant Banner
+        // 6. Chronological Session Logs Shortcut
         item {
-            GlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                backgroundColor = CharcoalCardElevated,
-                borderColor = CyanAccent.copy(alpha = 0.4f),
-                onClick = onNavigateToAI
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = CharcoalCardElevated,
+                border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToSessions() }
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(CyanAccent.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Luma AI",
-                            tint = CyanAccent
-                        )
+                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(20.dp))
+                        Column {
+                            Text("Session Telemetry History", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Text("${stats.completedSessions} completed sessions recorded", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                        }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Luma AI Coach",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Get daily retrospectives & break down large tasks",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted
-                        )
-                    }
+                    Text("View →", color = CyanAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
         }
 
         item {
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

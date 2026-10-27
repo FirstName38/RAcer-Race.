@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -32,6 +33,9 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Calendar : Screen("calendar", "Calendar", Icons.Default.CalendarMonth)
     data object DailyRoutine : Screen("daily_routine", "Daily Routine", Icons.Default.Schedule)
     data object WeeklyPlan : Screen("weekly_plan", "Weekly Plan", Icons.Default.CalendarMonth)
+    data object ThemeConfig : Screen("theme_config", "Theme Studio", Icons.Default.Palette)
+    data object AppUsage : Screen("app_usage", "App Usage & Limits", Icons.AutoMirrored.Filled.TrendingUp)
+    data object Manifestation : Screen("manifestation", "Manifestation Corner", Icons.Default.AutoAwesome)
 }
 
 val MainNavigationItems = listOf(
@@ -45,6 +49,8 @@ val MainNavigationItems = listOf(
     Screen.Wellness,
     Screen.Journal,
     Screen.Insights,
+    Screen.AppUsage,
+    Screen.Manifestation,
     Screen.Clock,
     Screen.FocusRoom,
     Screen.LumaAI,

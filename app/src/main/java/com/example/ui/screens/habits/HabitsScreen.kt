@@ -25,18 +25,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -246,7 +257,7 @@ fun HabitsScreen(
                 customCategories = customCategories,
                 onAddNewCategory = { newCat -> viewModel.addCustomHabitCategory(newCat) },
                 onDismiss = { showAddDialog = false },
-                onAddHabit = { name, desc, label, freq, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound ->
+                onAddHabit = { name, desc, label, freq, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound, iconName ->
                     viewModel.addHabit(
                         name = name,
                         description = desc,
@@ -257,11 +268,12 @@ fun HabitsScreen(
                         reminderContext = reminderCtx,
                         reminderEnabled = reminderOn,
                         reminderType = reminderType,
-                        reminderSound = reminderSound
+                        reminderSound = reminderSound,
+                        iconName = iconName
                     )
                     showAddDialog = false
                 },
-                onAddChallenge = { name, desc, label, days, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound ->
+                onAddChallenge = { name, desc, label, days, color, reminderTime, reminderCtx, reminderOn, reminderType, reminderSound, iconName ->
                     viewModel.addChallenge(
                         name = name,
                         description = desc,
@@ -272,7 +284,8 @@ fun HabitsScreen(
                         reminderContext = reminderCtx,
                         reminderEnabled = reminderOn,
                         reminderType = reminderType,
-                        reminderSound = reminderSound
+                        reminderSound = reminderSound,
+                        iconName = iconName
                     )
                     showAddDialog = false
                 },
@@ -604,8 +617,8 @@ fun AddHabitChallengeBottomSheet(
     customCategories: List<String>,
     onAddNewCategory: (String) -> Unit,
     onDismiss: () -> Unit,
-    onAddHabit: (name: String, desc: String, label: String, freq: HabitFrequency, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String) -> Unit,
-    onAddChallenge: (name: String, desc: String, label: String, days: Int, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String) -> Unit,
+    onAddHabit: (name: String, desc: String, label: String, freq: HabitFrequency, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String, iconName: String) -> Unit,
+    onAddChallenge: (name: String, desc: String, label: String, days: Int, color: String, reminderTime: String?, reminderCtx: String, reminderOn: Boolean, reminderType: String, reminderSound: String, iconName: String) -> Unit,
     onPreviewNotification: (String) -> Unit,
     onPreviewAlarm: (String) -> Unit
 ) {
@@ -621,6 +634,7 @@ fun AddHabitChallengeBottomSheet(
     var reminderType by remember { mutableStateOf("BOTH") } // NOTIFICATION, ALARM, BOTH
     var reminderSound by remember { mutableStateOf("zen_bell") }
     var selectedColor by remember { mutableStateOf("#8B5CF6") }
+    var selectedIconName by remember { mutableStateOf("icon_leaf") }
 
     var showAddCategoryField by remember { mutableStateOf(false) }
     var newCategoryInput by remember { mutableStateOf("") }
@@ -943,7 +957,7 @@ fun AddHabitChallengeBottomSheet(
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Preview Notification Sound 🔊", color = VioletPrimary, fontSize = 12.sp)
                                 }
@@ -1031,9 +1045,118 @@ fun AddHabitChallengeBottomSheet(
                 }
             }
 
+            // Preset Icon Grid (Matches Screenshot 5: 12 icons in 2 rows of 6) + Emoji Pack
+            item {
+                Text("Icon", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val presetIcons = listOf(
+                    Triple("icon_leaf", "Leaf", Icons.Default.Spa),
+                    Triple("icon_fitness", "Dumbbell", Icons.Default.FitnessCenter),
+                    Triple("icon_book", "Book", Icons.Default.MenuBook),
+                    Triple("icon_water", "Water", Icons.Default.WaterDrop),
+                    Triple("icon_moon", "Moon", Icons.Default.Bedtime),
+                    Triple("icon_sun", "Sun", Icons.Default.WbSunny),
+                    Triple("icon_brain", "Brain", Icons.Default.Psychology),
+                    Triple("icon_shoes", "Walk", Icons.Default.DirectionsWalk),
+                    Triple("icon_coffee", "Coffee", Icons.Default.LocalCafe),
+                    Triple("icon_music", "Music", Icons.Default.MusicNote),
+                    Triple("icon_heart", "Heart", Icons.Default.Favorite),
+                    Triple("icon_edit", "Pencil", Icons.Default.Edit)
+                )
+
+                // 2 Rows of 6 Icons (Matches Screenshot 5)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        presetIcons.take(6).forEach { (id, desc, iconVec) ->
+                            val isSelected = selectedIconName == id
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0xFF2E1065) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) VioletPrimary else Color(0xFF27272A)
+                                ),
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clickable { selectedIconName = id }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = iconVec,
+                                        contentDescription = desc,
+                                        tint = if (isSelected) VioletPrimary else TextMuted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        presetIcons.drop(6).forEach { (id, desc, iconVec) ->
+                            val isSelected = selectedIconName == id
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) Color(0xFF2E1065) else CharcoalCard,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) Color(0xFF8B5CF6) else Color(0xFF27272A)
+                                ),
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clickable { selectedIconName = id }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = iconVec,
+                                        contentDescription = desc,
+                                        tint = if (isSelected) VioletPrimary else TextMuted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Extended Emoji Pack
+                Text("Or Choose from Emoji Pack", style = MaterialTheme.typography.labelSmall, color = CyanAccent)
+                Spacer(modifier = Modifier.height(6.dp))
+                val emojiPack = listOf(
+                    "🎯", "🌿", "💧", "🏃", "🧘", "🧠", "📚", "✍️", "⚡", "🍎",
+                    "🥗", "💤", "☀️", "🌙", "🚴", "🏊", "🌲", "🌸", "☕", "🎵",
+                    "🎨", "💻", "🏆", "⭐", "🔥", "💎", "⏰", "🛡️", "🥑", "🕊️"
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(emojiPack) { emoji ->
+                        val isSelected = selectedIconName == emoji
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) VioletPrimary.copy(alpha = 0.3f) else CharcoalCard)
+                                .clickable { selectedIconName = emoji }
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(emoji, fontSize = 20.sp)
+                        }
+                    }
+                }
+            }
+
             // Color selection
             item {
-                Text("Color Accent", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                Text("Colour", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     colorOptions.forEach { hex ->
                         val c = Color(android.graphics.Color.parseColor(hex))
@@ -1069,7 +1192,8 @@ fun AddHabitChallengeBottomSheet(
                                     reminderContext,
                                     reminderEnabled,
                                     reminderType,
-                                    reminderSound
+                                    reminderSound,
+                                    selectedIconName
                                 )
                             } else {
                                 onAddHabit(
@@ -1082,7 +1206,8 @@ fun AddHabitChallengeBottomSheet(
                                     reminderContext,
                                     reminderEnabled,
                                     reminderType,
-                                    reminderSound
+                                    reminderSound,
+                                    selectedIconName
                                 )
                             }
                         }
@@ -1410,7 +1535,7 @@ fun EditHabitChallengeBottomSheet(
                                     shape = RoundedCornerShape(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = VioletPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("Preview Notification Sound 🔊", color = VioletPrimary, fontSize = 12.sp)
                                 }

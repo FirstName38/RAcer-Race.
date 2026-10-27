@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,11 +28,14 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.AccessibilityNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -42,6 +46,7 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -54,6 +59,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -193,29 +200,44 @@ fun DailyRoutineScreen(
                                     color = TextPrimary
                                 )
                                 Text(
-                                    text = "$completedCount of $totalCount steps completed today",
+                                    text = if (totalCount == 0) "No routine steps added yet" else "$completedCount of $totalCount steps completed today",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = TextSecondary
                                 )
                             }
 
                             // 70% Badge Indicator
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = progressColor.copy(alpha = 0.18f),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, progressColor.copy(alpha = 0.5f))
-                            ) {
-                                Text(
-                                    text = if (isAboveThreshold) {
-                                        "🟢 ${progressRate.toInt()}% (Above 70% Target)"
-                                    } else {
-                                        "🔴 ${progressRate.toInt()}% (Below 70% Target)"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = progressColor,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
+                            if (totalCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = progressColor.copy(alpha = 0.18f),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, progressColor.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = if (isAboveThreshold) {
+                                            "🟢 ${progressRate.toInt()}% (Above 70% Target)"
+                                        } else {
+                                            "🔴 ${progressRate.toInt()}% (Below 70% Target)"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = progressColor,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = CharcoalCardElevated,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CharcoalBorder)
+                                ) {
+                                    Text(
+                                        text = "Custom Routine",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                    )
+                                }
                             }
                         }
 

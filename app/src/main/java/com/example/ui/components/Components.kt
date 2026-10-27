@@ -224,9 +224,14 @@ fun FocusTimerDial(
                     color = TextMuted
                 )
             } else {
-                val mins = currentSeconds / 60
+                val hours = currentSeconds / 3600
+                val mins = (currentSeconds % 3600) / 60
                 val secs = currentSeconds % 60
-                val timeFormatted = "%02d:%02d".format(mins, secs)
+                val timeFormatted = if (hours > 0) {
+                    String.format(java.util.Locale.getDefault(), "%02d:%02d:%02d", hours, mins, secs)
+                } else {
+                    String.format(java.util.Locale.getDefault(), "%02d:%02d", mins, secs)
+                }
 
                 Text(
                     text = timeFormatted,

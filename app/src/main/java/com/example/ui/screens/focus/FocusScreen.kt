@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreTime
 import androidx.compose.material.icons.filled.Pause
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.AlertDialog
@@ -96,6 +98,7 @@ fun FocusScreen(
     var showTaskMenu by remember { mutableStateOf(false) }
     var showCustomExtendDialog by remember { mutableStateOf(false) }
     var showCycleConfigDialog by remember { mutableStateOf(false) }
+    var showTakeBreakDialog by remember { mutableStateOf(false) }
 
     val currentSound by viewModel.selectedSound.collectAsState()
     val soundVolume by viewModel.soundVolume.collectAsState()
@@ -158,33 +161,37 @@ fun FocusScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(CharcoalCardElevated)
-                        .padding(4.dp),
+                        .padding(5.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     FocusMode.values().forEach { mode ->
                         val isSelected = selectedMode == mode
-                        Box(
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) VioletPrimary else Color.Transparent,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) CyanAccent.copy(alpha = 0.5f) else Color.Transparent),
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) VioletPrimary else Color.Transparent)
                                 .clickable {
                                     selectedMode = mode
                                     if (mode == FocusMode.ADHD) viewModel.customFocusMinutes.value = 15
                                     if (mode == FocusMode.POMODORO) viewModel.customFocusMinutes.value = 25
                                     if (mode == FocusMode.CUSTOM) viewModel.customFocusMinutes.value = 45
                                 }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = mode.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else TextSecondary
-                            )
+                            Box(
+                                modifier = Modifier.padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = mode.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) Color.White else TextSecondary
+                                )
+                            }
                         }
                     }
                 }
@@ -192,42 +199,66 @@ fun FocusScreen(
                 // RUNNING CYCLE STATUS BANNER
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    borderColor = if (timerState.isBreak) CyanAccent.copy(alpha = 0.4f) else VioletPrimary.copy(alpha = 0.4f)
+                    borderColor = if (timerState.isBreak) EmeraldSuccess.copy(alpha = 0.5f) else CyanAccent.copy(alpha = 0.4f)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = if (timerState.isBreak) "Break: ${timerState.breakType}" else "Focus Session ${timerState.sessionInCycle}/${timerState.totalSessionsInCycle}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (timerState.isBreak) CyanAccent else TextPrimary
-                            )
-                            Text(
-                                text = "Cycle ${timerState.cycleNumber} • Started at ${timerState.clockStartTimeStr}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = if (timerState.isBreak) "Break: ${timerState.currentSeconds / 60}m ${timerState.currentSeconds % 60}s remaining"
+                                           else if (timerState.mode == FocusMode.STOPWATCH) "Stopwatch Focus Active"
+                                           else "Focus Session ${timerState.sessionInCycle}/${timerState.totalSessionsInCycle}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (timerState.isBreak) EmeraldSuccess else CyanAccent
+                                )
+                                Text(
+                                    text = if (timerState.mode == FocusMode.STOPWATCH) "Elapsed: ${timerState.elapsedSeconds / 3600}h ${(timerState.elapsedSeconds % 3600) / 60}m ${timerState.elapsedSeconds % 60}s • Started ${timerState.clockStartTimeStr}"
+                                           else "Cycle ${timerState.cycleNumber} • Started at ${timerState.clockStartTimeStr}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+
+                            if (timerState.pauseCount > 0) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = "${timerState.pauseCount} pauses",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AmberWarning,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "${timerState.pauseDurationSeconds}s paused",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
                         }
 
-                        if (timerState.pauseCount > 0) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = "${timerState.pauseCount} pauses",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AmberWarning,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "${timerState.pauseDurationSeconds}s paused",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted
-                                )
+                        if (timerState.isPaused) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = AmberWarning.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AmberWarning.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("⏸ Paused live: ${timerState.pauseDurationSeconds}s spent on pause", style = MaterialTheme.typography.labelSmall, color = AmberWarning, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -235,9 +266,20 @@ fun FocusScreen(
             }
 
             // Central Interactive Focus Dial
+            val dialCurrentSeconds = if (timerState.isRunning) {
+                if (timerState.mode == FocusMode.STOPWATCH) timerState.elapsedSeconds else timerState.currentSeconds
+            } else {
+                if (selectedMode == FocusMode.STOPWATCH) 0 else (focusMinutes * 60)
+            }
+            val dialTotalSeconds = if (timerState.isRunning) {
+                if (timerState.mode == FocusMode.STOPWATCH) 86400 else timerState.totalSeconds
+            } else {
+                if (selectedMode == FocusMode.STOPWATCH) 86400 else (focusMinutes * 60)
+            }
+
             FocusTimerDial(
-                currentSeconds = timerState.currentSeconds,
-                totalSeconds = if (timerState.isRunning) timerState.totalSeconds else (focusMinutes * 60),
+                currentSeconds = dialCurrentSeconds,
+                totalSeconds = dialTotalSeconds,
                 mode = if (timerState.isRunning) timerState.mode else selectedMode,
                 isRunning = timerState.isRunning,
                 hideRemainingTime = hideTime,
@@ -245,41 +287,67 @@ fun FocusScreen(
                 modifier = Modifier.padding(vertical = 10.dp)
             )
 
-            // Duration Slider for Custom Mode or Pomodoro Configuration
+            // Duration Slider for Custom Mode or Pomodoro Configuration / Stopwatch Explainer
             if (!timerState.isRunning) {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                if (selectedMode == FocusMode.STOPWATCH) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(Icons.Default.Timer, contentDescription = null, tint = CyanAccent, modifier = Modifier.size(32.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("Focus Cycle Duration", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                                Text("$focusMinutes mins focus • $shortBreakMinutes mins break", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = CyanAccent)
-                            }
-                            IconButton(onClick = { showCycleConfigDialog = true }) {
-                                Icon(Icons.Default.Tune, contentDescription = "Configure Cycle", tint = CyanAccent)
+                                Text("Open-Ended Stopwatch Focus", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text("Counts up continuously from 00:00:00 without limit (up to 24h+). Take custom breaks and track pause duration anytime.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                             }
                         }
-                        Slider(
-                            value = focusMinutes.toFloat(),
-                            onValueChange = { viewModel.customFocusMinutes.value = it.toInt() },
-                            valueRange = 5f..120f,
-                            steps = 22,
-                            colors = SliderDefaults.colors(
-                                thumbColor = CyanAccent,
-                                activeTrackColor = VioletPrimary
+                    }
+                } else {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Focus Cycle Duration", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    Text("$focusMinutes mins focus • $shortBreakMinutes mins break", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = CyanAccent)
+                                }
+                                IconButton(onClick = { showCycleConfigDialog = true }) {
+                                    Icon(Icons.Default.Tune, contentDescription = "Configure Cycle", tint = CyanAccent)
+                                }
+                            }
+                            Slider(
+                                value = focusMinutes.toFloat(),
+                                onValueChange = { viewModel.customFocusMinutes.value = it.toInt() },
+                                valueRange = 0f..480f,
+                                steps = 95,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = CyanAccent,
+                                    activeTrackColor = VioletPrimary
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
 
-            // Task Attachment Selector
+            // Study Room Linkage Selector
+            val customRooms by viewModel.customStudyRooms.collectAsState()
+            val linkedRoomId by viewModel.linkedStudyRoomId.collectAsState()
+            val habits by viewModel.habits.collectAsState()
+            val challenges by viewModel.challenges.collectAsState()
+            val weeklyPlans by viewModel.allWeeklyPlans.collectAsState()
+            val linkedTargetType by viewModel.linkedFocusTargetType.collectAsState()
+            val linkedTargetTitle by viewModel.linkedFocusTargetTitle.collectAsState()
+            var showRoomMenu by remember { mutableStateOf(false) }
+            var showTargetDialog by remember { mutableStateOf(false) }
+
             GlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = { if (!timerState.isRunning) showTaskMenu = true }
+                onClick = { if (!timerState.isRunning) showRoomMenu = true }
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -288,16 +356,109 @@ fun FocusScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Linked Task",
+                            text = "Linked Study Room (Optional)",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextSecondary
                         )
                         Text(
-                            text = if (timerState.isRunning) {
-                                timerState.activeTaskTitle ?: "Free Flow (No Task)"
-                            } else {
-                                chosenTask?.title ?: "Select a task to focus on..."
+                            text = when (linkedRoomId) {
+                                null, "", "none" -> "None (Solo Focus Sanctuary)"
+                                "room_pomodoro" -> "Silent Deep Work (Pomodoro)"
+                                "room_lofi" -> "Lo-Fi Study Cafe (Chill)"
+                                "room_sprint" -> "Coding & Exam Sprint"
+                                else -> customRooms.find { it.id == linkedRoomId }?.name ?: "Custom Study Room"
                             },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = CyanAccent
+                        )
+                    }
+                    if (!timerState.isRunning) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = CharcoalCardElevated
+                        ) {
+                            Text(
+                                text = "Change",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = CyanAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = showRoomMenu,
+                    onDismissRequest = { showRoomMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("None (Solo Focus Sanctuary)") },
+                        onClick = {
+                            viewModel.setLinkedStudyRoom("none")
+                            showRoomMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Silent Deep Work (Pomodoro)") },
+                        onClick = {
+                            viewModel.setLinkedStudyRoom("room_pomodoro")
+                            showRoomMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Lo-Fi Study Cafe (Chill)") },
+                        onClick = {
+                            viewModel.setLinkedStudyRoom("room_lofi")
+                            showRoomMenu = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Coding & Exam Sprint") },
+                        onClick = {
+                            viewModel.setLinkedStudyRoom("room_sprint")
+                            showRoomMenu = false
+                        }
+                    )
+                    customRooms.forEach { room ->
+                        DropdownMenuItem(
+                            text = { Text("${room.name} (${room.purpose})") },
+                            onClick = {
+                                viewModel.setLinkedStudyRoom(room.id)
+                                showRoomMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Linked Target Selector (Task, Habit, Challenge, Weekly Plan)
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { if (!timerState.isRunning) showTargetDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Linked Focus Target (Task / Habit / Challenge / Plan)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        val displayTarget = if (timerState.isRunning) {
+                            timerState.activeTaskTitle ?: if (linkedTargetType != "NONE") "[$linkedTargetType] $linkedTargetTitle" else "Free Flow (No Target)"
+                        } else {
+                            if (linkedTargetType != "NONE" && linkedTargetTitle.isNotBlank()) {
+                                "[$linkedTargetType] $linkedTargetTitle"
+                            } else {
+                                chosenTask?.let { "[TASK] ${it.title}" } ?: "Select task, habit, challenge or weekly plan..."
+                            }
+                        }
+                        Text(
+                            text = displayTarget,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = TextPrimary
@@ -309,47 +470,168 @@ fun FocusScreen(
                             color = CharcoalCardElevated
                         ) {
                             Text(
-                                text = "Choose",
+                                text = "Select",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = CyanAccent,
+                                color = VioletPrimary,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }
                 }
+            }
 
-                DropdownMenu(
-                    expanded = showTaskMenu,
-                    onDismissRequest = { showTaskMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("None (Free Flow)") },
-                        onClick = {
-                            selectedTaskId = null
-                            showTaskMenu = false
-                        }
-                    )
-                    activeTasks.filter { !it.isCompleted }.forEach { task ->
-                        DropdownMenuItem(
-                            text = { Text("${task.title} (${task.priority.displayName})") },
-                            onClick = {
-                                selectedTaskId = task.id
-                                showTaskMenu = false
+            if (showTargetDialog) {
+                var selectedTargetTab by remember { mutableIntStateOf(0) }
+                AlertDialog(
+                    onDismissRequest = { showTargetDialog = false },
+                    title = { Text("Link Focus Target", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().height(320.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("Tasks", "Habits", "Challenges", "Weekly Plan").forEachIndexed { idx, label ->
+                                    val isTabSelected = selectedTargetTab == idx
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isTabSelected) VioletPrimary else CharcoalCardElevated,
+                                        modifier = Modifier.clickable { selectedTargetTab = idx }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = if (isTabSelected) Color.White else TextSecondary,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
                             }
-                        )
+
+                            Column(
+                                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                when (selectedTargetTab) {
+                                    0 -> { // Tasks
+                                        val pendingTasks = activeTasks.filter { !it.isCompleted }
+                                        if (pendingTasks.isEmpty()) {
+                                            Text("No pending tasks. Create one in Tasks navigation.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                        } else {
+                                            pendingTasks.forEach { task ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = CharcoalCardElevated,
+                                                    modifier = Modifier.fillMaxWidth().clickable {
+                                                        selectedTaskId = task.id
+                                                        viewModel.setLinkedFocusTarget("TASK", task.id, task.title)
+                                                        showTargetDialog = false
+                                                    }
+                                                ) {
+                                                    Text("${task.title} (${task.priority.displayName})", modifier = Modifier.padding(10.dp), color = TextPrimary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    1 -> { // Gentle Habits
+                                        val regularHabits = habits.filter { !it.isChallenge }
+                                        if (regularHabits.isEmpty()) {
+                                            Text("No gentle habits configured.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                        } else {
+                                            regularHabits.forEach { habit ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = CharcoalCardElevated,
+                                                    modifier = Modifier.fillMaxWidth().clickable {
+                                                        selectedTaskId = null
+                                                        viewModel.setLinkedFocusTarget("HABIT", habit.id, habit.name)
+                                                        showTargetDialog = false
+                                                    }
+                                                ) {
+                                                    Text(habit.name, modifier = Modifier.padding(10.dp), color = TextPrimary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    2 -> { // Strict Challenges
+                                        if (challenges.isEmpty()) {
+                                            Text("No active strict challenges.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                        } else {
+                                            challenges.forEach { ch ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = CharcoalCardElevated,
+                                                    modifier = Modifier.fillMaxWidth().clickable {
+                                                        selectedTaskId = null
+                                                        viewModel.setLinkedFocusTarget("CHALLENGE", ch.id, ch.name)
+                                                        showTargetDialog = false
+                                                    }
+                                                ) {
+                                                    Text("${ch.name} (${ch.challengeDays}d streak)", modifier = Modifier.padding(10.dp), color = TextPrimary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    3 -> { // Weekly Plans
+                                        val pendingPlans = weeklyPlans.filter { !it.isCompleted }
+                                        if (pendingPlans.isEmpty()) {
+                                            Text("No weekly objectives for this week.", color = TextMuted, style = MaterialTheme.typography.bodySmall)
+                                        } else {
+                                            pendingPlans.forEach { plan ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = CharcoalCardElevated,
+                                                    modifier = Modifier.fillMaxWidth().clickable {
+                                                        selectedTaskId = null
+                                                        viewModel.setLinkedFocusTarget("WEEKLY_PLAN", plan.id, plan.title)
+                                                        showTargetDialog = false
+                                                    }
+                                                ) {
+                                                    Text("W${plan.weekNumber} · ${plan.title}", modifier = Modifier.padding(10.dp), color = TextPrimary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                selectedTaskId = null
+                                viewModel.setLinkedFocusTarget("NONE", null, "")
+                                showTargetDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated)
+                        ) {
+                            Text("Clear Target", color = TextSecondary)
+                        }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { showTargetDialog = false }) {
+                            Text("Close")
+                        }
                     }
-                }
+                )
             }
 
             // Controls: Main Action Buttons
             if (!timerState.isRunning) {
                 Button(
                     onClick = {
+                        val finalTaskTitle = if (linkedTargetType != "NONE" && linkedTargetTitle.isNotBlank()) {
+                            "[$linkedTargetType] $linkedTargetTitle"
+                        } else chosenTask?.title
+
                         viewModel.startFocus(
                             mode = selectedMode,
                             durationMinutes = focusMinutes,
                             taskId = selectedTaskId,
-                            taskTitle = chosenTask?.title,
+                            taskTitle = finalTaskTitle,
                             totalSessions = sessionsPerCycle,
                             shortBreak = shortBreakMinutes,
                             longBreak = longBreakMinutes,
@@ -376,7 +658,37 @@ fun FocusScreen(
                     )
                 }
             } else {
-                // Running Controls: Pause/Resume, +5m, +Custom, Next, End
+                // If break is active, show Break notification card
+                if (timerState.isBreak) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = EmeraldSuccess.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("☕ Break Active", style = MaterialTheme.typography.labelMedium, color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+                                Text("${timerState.currentSeconds / 60}m ${timerState.currentSeconds % 60}s remaining", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                            }
+                            Button(
+                                onClick = { viewModel.resumeFocus() },
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Resume Focus", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
+                // Running Controls: Pause/Resume, Take Break, +5m, +Custom, Next, End
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -403,54 +715,109 @@ fun FocusScreen(
                         Text(if (timerState.isPaused) "Resume" else "Pause", fontSize = 13.sp)
                     }
 
-                    // +5 Min
-                    Button(
-                        onClick = { viewModel.extendFocus(minutes = 5) },
-                        modifier = Modifier.height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = "+5 Min", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("+5m", fontSize = 12.sp)
-                    }
+                    // In Stopwatch Mode: Take Break button
+                    if (timerState.mode == FocusMode.STOPWATCH) {
+                        Button(
+                            onClick = { showTakeBreakDialog = true },
+                            modifier = Modifier.height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess.copy(alpha = 0.25f)),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Coffee, contentDescription = "Take Break", tint = EmeraldSuccess, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Break", fontSize = 12.sp, color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        // +5 Min
+                        Button(
+                            onClick = { viewModel.extendFocus(minutes = 5) },
+                            modifier = Modifier.height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "+5 Min", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("+5m", fontSize = 12.sp)
+                        }
 
-                    // +Custom
-                    Button(
-                        onClick = { showCustomExtendDialog = true },
-                        modifier = Modifier.height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.MoreTime, contentDescription = "+Custom", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("+Custom", fontSize = 12.sp)
-                    }
+                        // +Custom
+                        Button(
+                            onClick = { showCustomExtendDialog = true },
+                            modifier = Modifier.height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CharcoalCardElevated),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.MoreTime, contentDescription = "+Custom", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("+Custom", fontSize = 12.sp)
+                        }
 
-                    // Next / Skip
-                    Button(
-                        onClick = { viewModel.nextFocusPeriod() },
-                        modifier = Modifier.height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.25f)),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.SkipNext, contentDescription = "Next", tint = CyanAccent, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text("Next", fontSize = 12.sp, color = CyanAccent)
+                        // Next / Skip
+                        Button(
+                            onClick = { viewModel.nextFocusPeriod() },
+                            modifier = Modifier.height(52.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent.copy(alpha = 0.25f)),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.SkipNext, contentDescription = "Next", tint = CyanAccent, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Next", fontSize = 12.sp, color = CyanAccent)
+                        }
                     }
 
                     // Stop
+                    var showEndSessionRewardDialog by remember { mutableStateOf(false) }
+
                     Button(
-                        onClick = { viewModel.stopFocus() },
+                        onClick = {
+                            if (linkedTargetType != "NONE" && linkedTargetId != null) {
+                                showEndSessionRewardDialog = true
+                            } else {
+                                viewModel.stopFocus()
+                            }
+                        },
                         modifier = Modifier.height(52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = RoseUrgent.copy(alpha = 0.2f)),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                     ) {
                         Icon(imageVector = Icons.Default.Stop, contentDescription = "End", tint = RoseUrgent, modifier = Modifier.size(18.dp))
+                    }
+
+                    if (showEndSessionRewardDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showEndSessionRewardDialog = false },
+                            title = { Text("Complete Target & Claim Coins? 🪙", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                            text = {
+                                Text("Did you achieve your linked target: \"$linkedTargetTitle\"? Marking it complete awards you bonus coins!")
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        viewModel.completeLinkedFocusTarget()
+                                        viewModel.stopFocus()
+                                        showEndSessionRewardDialog = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                                ) {
+                                    Text("Yes, Complete (+Coins)", color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.stopFocus()
+                                        showEndSessionRewardDialog = false
+                                    }
+                                ) {
+                                    Text("End Session Only")
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -533,12 +900,25 @@ fun FocusScreen(
                                 shape = RoundedCornerShape(20.dp),
                                 color = Color.Transparent
                             ) {
-                                Text(
-                                    text = sound.displayName,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (isSelected) CyanAccent else TextSecondary,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = sound.displayName,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (isSelected) CyanAccent else TextSecondary,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                    if (isSelected && sound != FocusSound.NONE) {
+                                        Icon(
+                                            imageVector = Icons.Default.GraphicEq,
+                                            contentDescription = null,
+                                            tint = CyanAccent,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -710,12 +1090,12 @@ fun FocusScreen(
                         modifier = Modifier.verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Focus Session: $focusM mins", style = MaterialTheme.typography.labelMedium, color = CyanAccent)
+                        Text("Focus Session: $focusM mins ${if (focusM == 0) "(Continuous)" else ""}", style = MaterialTheme.typography.labelMedium, color = CyanAccent)
                         Slider(
                             value = focusM.toFloat(),
                             onValueChange = { focusM = it.toInt() },
-                            valueRange = 5f..90f,
-                            steps = 16,
+                            valueRange = 0f..480f,
+                            steps = 95,
                             colors = SliderDefaults.colors(thumbColor = CyanAccent, activeTrackColor = CyanAccent)
                         )
 
@@ -723,8 +1103,8 @@ fun FocusScreen(
                         Slider(
                             value = shortM.toFloat(),
                             onValueChange = { shortM = it.toInt() },
-                            valueRange = 1f..30f,
-                            steps = 28,
+                            valueRange = 0f..60f,
+                            steps = 59,
                             colors = SliderDefaults.colors(thumbColor = EmeraldSuccess, activeTrackColor = EmeraldSuccess)
                         )
 
@@ -732,8 +1112,8 @@ fun FocusScreen(
                         Slider(
                             value = longM.toFloat(),
                             onValueChange = { longM = it.toInt() },
-                            valueRange = 5f..60f,
-                            steps = 10,
+                            valueRange = 0f..90f,
+                            steps = 89,
                             colors = SliderDefaults.colors(thumbColor = VioletPrimary, activeTrackColor = VioletPrimary)
                         )
 
@@ -774,6 +1154,102 @@ fun FocusScreen(
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Save Settings", fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+        }
+
+        // Take Break Dialog for Stopwatch Mode
+        if (showTakeBreakDialog) {
+            var selectedBreakMins by remember { mutableIntStateOf(5) }
+            var customBreakStr by remember { mutableStateOf("") }
+
+            AlertDialog(
+                onDismissRequest = { showTakeBreakDialog = false },
+                containerColor = CharcoalCardElevated,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Coffee, contentDescription = null, tint = EmeraldSuccess)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Take a Break", fontWeight = FontWeight.Bold, color = TextPrimary)
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Pause your stopwatch focus session for a refreshing break. Choose duration:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(5, 10, 15, 20, 30).forEach { mins ->
+                                val isSel = selectedBreakMins == mins && customBreakStr.isBlank()
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSel) EmeraldSuccess.copy(alpha = 0.25f) else CharcoalCard,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) EmeraldSuccess else CharcoalBorder),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            selectedBreakMins = mins
+                                            customBreakStr = ""
+                                        }
+                                ) {
+                                    Text(
+                                        text = "${mins}m",
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isSel) EmeraldSuccess else TextMuted,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = customBreakStr,
+                            onValueChange = {
+                                customBreakStr = it.filter { c -> c.isDigit() }
+                                val v = customBreakStr.toIntOrNull()
+                                if (v != null && v > 0) selectedBreakMins = v
+                            },
+                            label = { Text("Custom Break Minutes") },
+                            placeholder = { Text("e.g. 8") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = EmeraldSuccess,
+                                unfocusedBorderColor = CharcoalBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            )
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val mins = customBreakStr.toIntOrNull() ?: selectedBreakMins
+                            viewModel.takeBreak(mins.coerceAtLeast(1))
+                            showTakeBreakDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Start Break", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = { showTakeBreakDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = CharcoalBorder),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Cancel", color = TextPrimary)
                     }
                 }
             )

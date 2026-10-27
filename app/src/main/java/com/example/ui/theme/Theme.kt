@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
@@ -57,16 +58,28 @@ private val LightColorScheme = lightColorScheme(
 fun RacerTheme(
     appTheme: AppTheme = AppTheme.MIDNIGHT_OLED,
     appWallpaper: AppWallpaper = AppWallpaper.AURORA_WAVES,
+    appFont: AppFont = AppFont.MODERN_SANS,
+    customAccentColor: Color? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = getThemeColorScheme(appTheme)
+    val baseScheme = getThemeColorScheme(appTheme)
+    val colorScheme = if (customAccentColor != null) {
+        baseScheme.copy(
+            primary = customAccentColor,
+            outline = customAccentColor.copy(alpha = 0.45f)
+        )
+    } else {
+        baseScheme
+    }
+    val typography = getAppTypography(appFont)
     CompositionLocalProvider(
         LocalAppTheme provides appTheme,
-        LocalAppWallpaper provides appWallpaper
+        LocalAppWallpaper provides appWallpaper,
+        LocalAppFont provides appFont
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
+            typography = typography,
             content = content
         )
     }
