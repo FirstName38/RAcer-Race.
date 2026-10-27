@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,7 +32,10 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.HorizontalDivider
+import com.example.util.WeekCalculationHelper
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
@@ -1155,7 +1159,7 @@ fun AddTaskBottomSheet(
 
     // Weekly Plan Link
     var linkToWeeklyPlan by remember { mutableStateOf(false) }
-    val currentWeekNumber = remember { WeekCalculationHelper.calculateWeekInfo(nowCal.timeInMillis).weekNumber }
+    val currentWeekNumber = remember { WeekCalculationHelper.calculateWeekInfo(nowCal.timeInMillis).currentWeekNumber }
     var selectedWeekNumber by remember { mutableIntStateOf(currentWeekNumber) }
 
     val soundOptions = listOf("Default Bell", "Sunrise Melody", "Digital Chime", "Radar Alert", "Zen Gong")
@@ -1364,7 +1368,7 @@ fun AddTaskBottomSheet(
                             )
                         }
 
-                        Divider(color = CharcoalBorder.copy(alpha = 0.5f))
+                        HorizontalDivider(color = CharcoalBorder.copy(alpha = 0.5f))
 
                         // Reminder Options
                         Row(
@@ -1656,7 +1660,7 @@ fun EditTaskBottomSheet(
     var reminderEnabled by remember { mutableStateOf(task.reminderEnabled) }
     var reminderType by remember { mutableStateOf(task.reminderType) }
     var reminderSound by remember { mutableStateOf(task.reminderSound) }
-    var reminderLeadMinutes by remember { mutableIntStateOf(task.reminderLeadMinutes) }
+    var reminderLeadMinutes by remember { mutableIntStateOf(0) }
 
     var linkToWeeklyPlan by remember { mutableStateOf(task.weeklyPlanWeekNumber != null) }
     var selectedWeekNumber by remember { mutableIntStateOf(task.weeklyPlanWeekNumber ?: 1) }
@@ -1766,7 +1770,7 @@ fun EditTaskBottomSheet(
                             )
                         }
 
-                        Divider(color = CharcoalBorder.copy(alpha = 0.5f))
+                        HorizontalDivider(color = CharcoalBorder.copy(alpha = 0.5f))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1941,7 +1945,6 @@ fun EditTaskBottomSheet(
                         dueDateMillis = dueMillis,
                         dueTimeString = dueTimeStr,
                         reminderEnabled = isScheduled && reminderEnabled,
-                        reminderLeadMinutes = reminderLeadMinutes,
                         reminderType = reminderType,
                         reminderSound = reminderSound,
                         weeklyPlanWeekNumber = if (linkToWeeklyPlan) selectedWeekNumber else null

@@ -337,10 +337,11 @@ fun FocusScreen(
             // Study Room Linkage Selector
             val customRooms by viewModel.customStudyRooms.collectAsState()
             val linkedRoomId by viewModel.linkedStudyRoomId.collectAsState()
-            val habits by viewModel.habits.collectAsState()
-            val challenges by viewModel.challenges.collectAsState()
+            val habits by viewModel.activeHabits.collectAsState()
+            val challenges = remember(habits) { habits.filter { it.isChallenge } }
             val weeklyPlans by viewModel.allWeeklyPlans.collectAsState()
             val linkedTargetType by viewModel.linkedFocusTargetType.collectAsState()
+            val linkedTargetId by viewModel.linkedFocusTargetId.collectAsState()
             val linkedTargetTitle by viewModel.linkedFocusTargetTitle.collectAsState()
             var showRoomMenu by remember { mutableStateOf(false) }
             var showTargetDialog by remember { mutableStateOf(false) }

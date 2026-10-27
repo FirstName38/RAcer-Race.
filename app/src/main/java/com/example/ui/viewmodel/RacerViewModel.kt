@@ -227,12 +227,6 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setWeekStartDay(day: String) {
-        weekStartDay.value = day
-        viewModelScope.launch {
-            repository.setSetting("week_start_day", day)
-        }
-    }
 
     fun setWeek1BeginsRule(rule: String) {
         week1BeginsRule.value = rule
@@ -1342,27 +1336,23 @@ class RacerViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     "HABIT" -> {
                         val todayStr = repository.getTodayDateString()
-                        repository.insertCompletion(
-                            com.example.data.entity.HabitCompletionEntity(
-                                habitId = targetId,
-                                dateString = todayStr,
-                                isCompleted = true,
-                                perfectionScore = 100,
-                                note = "Completed via linked Focus Session"
-                            )
+                        repository.recordHabitCompletion(
+                            habitId = targetId,
+                            dateString = todayStr,
+                            isCompleted = true,
+                            perfectionScore = 100,
+                            note = "Completed via linked Focus Session"
                         )
                         awardCoins(15, "Completed linked Habit in Focus Session")
                     }
                     "CHALLENGE" -> {
                         val todayStr = repository.getTodayDateString()
-                        repository.insertCompletion(
-                            com.example.data.entity.HabitCompletionEntity(
-                                habitId = targetId,
-                                dateString = todayStr,
-                                isCompleted = true,
-                                perfectionScore = 100,
-                                note = "Conquered linked Challenge day via Focus Session"
-                            )
+                        repository.recordHabitCompletion(
+                            habitId = targetId,
+                            dateString = todayStr,
+                            isCompleted = true,
+                            perfectionScore = 100,
+                            note = "Conquered linked Challenge day via Focus Session"
                         )
                         awardCoins(25, "Conquered linked Challenge in Focus Session")
                     }

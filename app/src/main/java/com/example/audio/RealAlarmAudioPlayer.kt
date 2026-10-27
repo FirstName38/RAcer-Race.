@@ -42,6 +42,12 @@ enum class AlarmSoundType(val displayName: String, val description: String) {
     CYBER_SYNTH("Cyber Synth", "Pulsing futuristic electronic focus alarm"),
     HEAVY_PULSE("Heavy Pulse", "Deep bass rhythmic low-frequency alert beats"),
     ROOSTER_MORNING("Morning Roost", "Harmonic acoustic rooster wake-up cadence"),
+    ZEN_TEMPLE_GONG("Zen Temple Gong", "Deep resonant calming bronze temple bell"),
+    FOREST_BIRDS("Forest Birds", "Trilling woodland morning birdsong & gentle stream"),
+    OCEAN_WAVES("Ocean Waves", "Rhythmic Pacific surf cresting on shore"),
+    MARIMBA_BREEZE("Marimba Breeze", "Brisk acoustic wooden percussion rhythm"),
+    SPACE_RADAR("Space Radar", "Galactic orbital sonar pings"),
+    ENERGETIC_PULSE("Energetic Pulse", "High-tempo motivational beat to jump out of bed"),
     SYSTEM_DEFAULT("System Ringtone", "Your phone's default system alarm sound")
 }
 
@@ -347,7 +353,79 @@ object RealAlarmAudioPlayer {
                     0.0
                 }
             }
+            AlarmSoundType.ZEN_TEMPLE_GONG -> {
+                // Rich fundamental at 174Hz with warm shimmering overtones and slow exponential decay
+                val cyclePos = t % 3.0
+                val decay = kotlin.math.exp(-cyclePos * 0.9)
+                val s1 = sin(2.0 * PI * 174.61 * t)
+                val s2 = sin(2.0 * PI * 349.23 * t) * 0.45
+                val s3 = sin(2.0 * PI * 523.25 * t) * 0.25
+                val s4 = sin(2.0 * PI * 880.0 * t) * 0.1
+                (s1 + s2 + s3 + s4) * decay * 0.9
+            }
+            AlarmSoundType.FOREST_BIRDS -> {
+                // FM synthesis chirping bird calls repeating in nature cadence
+                val cyclePos = t % 1.2
+                if (cyclePos < 0.8) {
+                    val chirpMod = sin(2.0 * PI * 28.0 * t) * 600.0
+                    val f = 2400.0 + chirpMod
+                    sin(2.0 * PI * f * t) * 0.75
+                } else {
+                    0.0
+                }
+            }
+            AlarmSoundType.OCEAN_WAVES -> {
+                // Modulated soothing white noise & low swell resonance
+                val cyclePos = t % 4.0
+                val swell = 0.5 + 0.5 * sin(2.0 * PI * 0.25 * t) // 4-second swell
+                val lowSurf = sin(2.0 * PI * 75.0 * t) * 0.6
+                val midSurf = sin(2.0 * PI * 140.0 * t) * 0.4
+                (lowSurf + midSurf) * swell * 0.85
+            }
+            AlarmSoundType.MARIMBA_BREEZE -> {
+                // High tempo wooden percussion arpeggio (G4, B4, D5, G5)
+                val cyclePos = t % 0.8
+                val step = ((cyclePos / 0.2).toInt()).coerceIn(0, 3)
+                val stepT = cyclePos % 0.2
+                val notes = doubleArrayOf(392.0, 493.88, 587.33, 783.99)
+                val f = notes[step]
+                val decay = kotlin.math.exp(-stepT * 12.0)
+                sin(2.0 * PI * f * t) * decay * 0.85
+            }
+            AlarmSoundType.SPACE_RADAR -> {
+                // Dual orbital sonar ping
+                val cyclePos = t % 1.0
+                if (cyclePos < 0.2 || (cyclePos in 0.35..0.55)) {
+                    val pT = if (cyclePos < 0.25) cyclePos else cyclePos - 0.35
+                    val decay = kotlin.math.exp(-pT * 15.0)
+                    sin(2.0 * PI * 1650.0 * t) * decay * 0.9
+                } else {
+                    0.0
+                }
+            }
+            AlarmSoundType.ENERGETIC_PULSE -> {
+                // Fast-paced double punch beat (440Hz and 880Hz octave)
+                val cyclePos = t % 0.5
+                val isBeat = cyclePos < 0.18
+                if (isBeat) {
+                    val decay = kotlin.math.exp(-cyclePos * 8.0)
+                    (sin(2.0 * PI * 440.0 * t) * 0.6 + sin(2.0 * PI * 880.0 * t) * 0.4) * decay * 0.95
+                } else {
+                    0.0
+                }
+            }
             AlarmSoundType.SYSTEM_DEFAULT -> 0.0
+        }
+    }
+
+    /**
+     * Preview an alarm sound briefly (3 seconds) for the user to hear in settings.
+     */
+    fun previewAlarmSound(context: Context, soundName: String, durationMs: Long = 3000) {
+        startAlarm(context = context, soundName = soundName)
+        scope.launch {
+            delay(durationMs)
+            stopAlarm(context)
         }
     }
 

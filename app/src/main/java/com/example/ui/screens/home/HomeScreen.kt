@@ -47,7 +47,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,7 +75,11 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.VioletPrimary
 import com.example.ui.viewmodel.RacerViewModel
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -132,6 +139,15 @@ fun HomeScreen(
     val weeklyRate = if (weeklyTotal > 0) (weeklyDone.toFloat() / weeklyTotal * 100f) else 0f
     val weeklyAbove70 = weeklyRate >= 70f
     val weeklyColor = if (weeklyTotal == 0) CyanAccent else if (weeklyAbove70) EmeraldSuccess else RoseUrgent
+
+    var liveSecondsTime by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        val sdf = SimpleDateFormat("hh:mm:ss a", Locale.getDefault())
+        while (true) {
+            liveSecondsTime = sdf.format(Date())
+            delay(1000)
+        }
+    }
 
     // Ambient pulse animation for active elements
     val infiniteTransition = rememberInfiniteTransition(label = "home_pulse")
@@ -233,6 +249,71 @@ fun HomeScreen(
                                 color = Color(0xFFF59E0B)
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // 1.5 Live Precise Clock with Seconds (Request 2: "at home time with second add also")
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundColor = Color(0xFF141226).copy(alpha = 0.85f),
+                borderColor = Color(0xFF8B5CF6).copy(alpha = 0.35f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = CyanAccent.copy(alpha = 0.15f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccessTime,
+                                contentDescription = "Clock",
+                                tint = CyanAccent,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "LOCAL PRECISION TIME",
+                                style = MaterialTheme.typography.labelSmall,
+                                letterSpacing = 1.sp,
+                                color = TextMuted,
+                                fontSize = 10.sp
+                            )
+                            Text(
+                                text = liveSecondsTime.ifEmpty { "12:00:00 PM" },
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF8B5CF6).copy(alpha = 0.2f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "LIVE SECONDS ⏱️",
+                            color = Color(0xFFA78BFA),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        )
                     }
                 }
             }

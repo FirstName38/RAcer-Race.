@@ -1,6 +1,8 @@
 {
-  "name": "RAcer",
-  "description": "ADHD-friendly productivity and digital-focus application with timers, tasks, habits, journal, focus room, insights, and AI coaching.",
+  "name": "FocusFlow",
+  "description": "ADHD-friendly routine, mental wellbeing & productivity companion with visual clock suite, study rooms, manifestations, and habit tracking",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
